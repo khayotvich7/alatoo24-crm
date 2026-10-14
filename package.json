@@ -1,0 +1,10 @@
+{
+  "name": "alatoo-crm",
+  "private": true,
+  "description": "Alatoo Market server (API + database) and CRM web panel",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "build": "npm ci --prefix server --omit=dev && npm ci --prefix web && npm run build --prefix web",
+    "start": "node server/src/index.ts"
+  }
+}
