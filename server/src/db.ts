@@ -127,6 +127,15 @@ CREATE TABLE IF NOT EXISTS expenses (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS expenses_day ON expenses(day);
+CREATE TABLE IF NOT EXISTS api_keys (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  hash        TEXT NOT NULL UNIQUE,         -- sha256 of the key; the key itself is shown once and never stored
+  prefix      TEXT NOT NULL,                -- first characters, to recognise a key in the list
+  perms       TEXT NOT NULL DEFAULT '{}',
+  last_used   TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `);
 // The separate "Yo'lda" (courier) step was merged into "Dastavkaga" (ready).
 db.exec("UPDATE orders SET status = 'ready' WHERE status = 'courier'");
