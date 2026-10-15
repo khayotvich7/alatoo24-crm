@@ -24,7 +24,7 @@ export default function Dashboard(_: { arg: string | null }) {
   if (error) return <Empty title="Yuklab bo'lmadi" text={error} />;
   if (!d) return <div className="muted">Yuklanmoqda…</div>;
   const ss = (s: Status) => d.statusSums[s] ?? { n: 0, s: 0 };
-  const onWay = { n: ss('confirmed').n + ss('ready').n + ss('courier').n, s: ss('confirmed').s + ss('ready').s + ss('courier').s };
+  const onWay = { n: ss('ready').n, s: ss('ready').s };
   const m = d.money; // staff get counts only
   const go = (h: string) => () => { location.hash = h; };
 
@@ -50,7 +50,7 @@ export default function Dashboard(_: { arg: string | null }) {
         <>
           <div className="grid g4">
             <Stat k="Umumiy savdo" v={<T v={ss('delivered').s} />} s="naqd pul olingan" icon="cash" tone="gold" onClick={go('finance')} />
-            <Stat k="Yo'lda" v={<T v={onWay.s} />} s={`${onWay.n} ta buyurtma · tasdiqlangan va kuryerda`} icon="truck" tone="amber" onClick={go('orders')} />
+            <Stat k="Dastavkada" v={<T v={onWay.s} />} s={`${onWay.n} ta buyurtma · yetkazilmoqda`} icon="truck" tone="amber" onClick={go('orders')} />
             <Stat k="Otkaz (bekor)" v={<T v={ss('cancelled').s} />} s={`${ss('cancelled').n} ta buyurtma`} icon="ban" tone="red" onClick={go('orders')} />
             <Stat k="Yetib bordi" v={<T v={ss('delivered').n} f={n => `${n} ta`} />} s={`${money(ss('delivered').s)} · o'rtacha ${short(ss('delivered').n ? ss('delivered').s / ss('delivered').n : 0)}`} icon="check" tone="green" onClick={go('orders')} />
           </div>
@@ -65,7 +65,7 @@ export default function Dashboard(_: { arg: string | null }) {
         <div className="grid g4">
           <Stat k="Yangi" v={<T v={ss('new').n} f={n => `${n} ta`} />} s="tekshirish kutilmoqda" icon="orders" tone="gold" onClick={can('orders') ? go('orders') : undefined} />
           <Stat k="Tekshiruvda" v={<T v={ss('checking').n} f={n => `${n} ta`} />} s="tekshiruvchida" icon="shield" tone="gold" onClick={can('orders') ? go('orders') : undefined} />
-          <Stat k="Yo'lda" v={<T v={onWay.n} f={n => `${n} ta`} />} s="tasdiqlangan, dastavka, kuryer" icon="truck" tone="amber" onClick={can('orders') ? go('orders') : undefined} />
+          <Stat k="Dastavkada" v={<T v={onWay.n} f={n => `${n} ta`} />} s="yetkazilmoqda" icon="truck" tone="amber" onClick={can('orders') ? go('orders') : undefined} />
           <Stat k="Bugun yetkazildi" v={<T v={d.today.n} f={n => `${n} ta`} />} s={`shu oy: ${d.month.n} ta`} icon="check" tone="green" />
         </div>
       )}
@@ -94,7 +94,7 @@ export default function Dashboard(_: { arg: string | null }) {
         <div className="stack">
           <div className="card">
             <h2 style={{ marginBottom: 12 }}>Holatlar</h2>
-            {(['new', 'checking', 'confirmed', 'ready', 'courier', 'delivered', 'cancelled'] as Status[]).map(s => (
+            {(['new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'] as Status[]).map(s => (
               <div key={s} className="row between" style={{ padding: '8px 0' }}>
                 <span className={`badge t-${STATUS[s].tone}`}>{STATUS[s].label}</span>
                 <span className="num small"><b style={{ fontSize: 14 }}>{ss(s).n}</b>{m ? <span className="muted"> · {short(ss(s).s)}</span> : null}</span>

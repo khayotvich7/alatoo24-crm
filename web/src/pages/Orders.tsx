@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { type Dashboard, FLOW, money, type Order, type OrderRow, patch, STATUS, type Status, when } from '../api';
-import { Badge, Drawer, Empty, Icon, Search, useCan, useLoad, useToast } from '../ui';
+import { type Dashboard, del, FLOW, money, type Order, type OrderRow, patch, STATUS, type Status, when } from '../api';
+import { Badge, Confirm, Drawer, Empty, Icon, Search, useCan, useLoad, useMe, useToast } from '../ui';
 import { MetalButton } from '@/components/ui/metal-button';
 
-const FILTERS: (Status | 'all')[] = ['all', 'new', 'checking', 'confirmed', 'ready', 'courier', 'delivered', 'cancelled'];
+const FILTERS: (Status | 'all')[] = ['all', 'new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'];
 
 export default function Orders({ arg }: { arg: string | null }) {
   const [status, setStatus] = useState<Status | 'all'>('all');
@@ -88,15 +88,21 @@ export default function Orders({ arg }: { arg: string | null }) {
 const NEXT: Partial<Record<Status, { to: Status; label: string; cls: string }>> = {
   new: { to: 'checking', label: 'Tekshiruvga yuborish', cls: 'btn' },
   checking: { to: 'confirmed', label: 'Tekshirildi · tasdiqlash', cls: 'btn' },
-  confirmed: { to: 'ready', label: 'Dastavkaga tayyor', cls: 'btn' },
-  ready: { to: 'courier', label: 'Kuryerga berildi', cls: 'btn' },
-  courier: { to: 'delivered', label: 'Yetkazildi · naqd olindi', cls: 'btn sun' },
+  confirmed: { to: 'ready', label: 'Dastavkaga berildi', cls: 'btn' },
+  ready: { to: 'delivered', label: 'Yetkazildi · naqd olindi', cls: 'btn sun' },
 };
 
 function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
   const { data, error, reload } = useLoad<{ order: Order }>(`/api/admin/orders/${id}`);
   const toast = useToast();
   const edit = useCan()('orders', 2);
+  const owner = useMe().role === 'owner';
+  const [rm, setRm] = useState(false);
+  const remove = async () => {
+    setBusy(true);
+    try { await del(`/api/admin/orders/${id}`); toast("Buyurtma o'chirildi"); onChanged(); onClose(); }
+    catch (e) { toast((e as Error).message); setBusy(false); }
+  };
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const o = data?.order;
@@ -127,6 +133,7 @@ function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => vo
         {o.status === 'delivered' || o.status === 'cancelled' ? (
           <MetalButton tone="ghost" disabled={busy} onClick={() => confirm('Buyurtma qayta ochilsinmi? Yetkazilgan bo‘lsa, tovar skladga qaytariladi.') && save({ status: 'confirmed' }, 'Qayta ochildi')}>Qayta ochish</MetalButton>
         ) : null}
+        {owner ? <button className="del-btn" style={{ marginLeft: 'auto', width: 46, height: 46, flexBasis: 46 }} title="Buyurtmani o'chirish" aria-label="Buyurtmani o'chirish" disabled={busy} onClick={() => setRm(true)}><Icon name="trash" size={18} /></button> : null}
       </>}
     >
       <div className="card">
@@ -175,6 +182,8 @@ function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => vo
         <textarea className="textarea" placeholder="Masalan: kuryer Ali, 2-qavat" value={note ?? o.adminNote} readOnly={!edit} onChange={e => setNote(e.target.value)} />
         {note !== null && note !== o.adminNote ? <MetalButton size="sm" tone="emerald" style={{ marginTop: 10 }} disabled={busy} onClick={() => save({ adminNote: note }, 'Saqlandi').then(() => setNote(null))}>Saqlash</MetalButton> : null}
       </div>
+
+      {rm ? <Confirm title={`№ ${o.no} o'chirilsinmi?`} text={<>Buyurtma, uning tovarlari va tarixi butunlay o'chiriladi.{o.status === 'delivered' ? ' Yetkazilgan tovarlar skladga qaytariladi.' : ''}</>} busy={busy} onOk={remove} onCancel={() => setRm(false)} /> : null}
 
       <div className="card">
         <h3 style={{ marginBottom: 8 }}>Tarix</h3>

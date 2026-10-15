@@ -47,8 +47,8 @@ function Body({ f, reload }: { f: F; reload: () => void }) {
 
       <h2 className="sec-title">Kassa</h2>
       <div className="grid g4">
-        <Stat k="Kuryerda (yo'lda)" v={<T v={f.kassa.onTheWay.s} />} s={`${f.kassa.onTheWay.n} ta buyurtma · kuryer olib keladi`} icon="truck" />
-        <Stat k="Kutilmoqda" v={<T v={f.kassa.expected.s} />} s={`${f.kassa.expected.n} ta · tasdiqlangan va dastavkaga`} icon="clock" />
+        <Stat k="Dastavkada" v={<T v={f.kassa.onTheWay.s} />} s={`${f.kassa.onTheWay.n} ta buyurtma · kuryer olib keladi`} icon="truck" />
+        <Stat k="Kutilmoqda" v={<T v={f.kassa.expected.s} />} s={`${f.kassa.expected.n} ta · tekshiruvda va tasdiqlangan`} icon="clock" />
         <Stat k="Bugun yig'ildi" v={<T v={f.kassa.today.s} />} s={`${f.kassa.today.n} ta yetkazildi · 7 kun: ${short(f.kassa.week.s)}`} icon="cash" />
         <Stat k="Shu oy yig'ildi" v={<T v={f.kassa.month.s} />} s={`${f.kassa.month.n} ta yetkazildi`} icon="wallet" />
       </div>

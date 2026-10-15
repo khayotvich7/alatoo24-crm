@@ -1,5 +1,6 @@
 import { Pencil, Plus, Save, Trash2, UserPlus, X } from 'lucide-react';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MetalButton } from '@/components/ui/metal-button';
 import { type Area, AREA_LABEL, del, patch, type Perms, post, type Staff } from '../api';
 import { Confirm, Drawer, Empty, Field, Icon, useLoad, useToast } from '../ui';
@@ -10,7 +11,7 @@ const LEVEL_TEXT = ['yopiq', "faqat ko'rish", "to'liq"];
 
 // What each area's "full" access lets a person do, shown under the switch.
 const HINT: Record<Area, string> = {
-  orders: "To'liq: holatini o'zgartiradi (tekshiruv, tasdiq, dastavka, kuryer), izoh yozadi",
+  orders: "To'liq: holatini o'zgartiradi (tekshiruv, tasdiq, dastavka, yetkazildi), izoh yozadi",
   products: "To'liq: tovar qo'shadi, tahrirlaydi, o'chiradi, rasm yuklaydi",
   stock: "To'liq: kirim, chiqim va qoldiqni to'g'rilaydi",
   customers: "Mijozlar ro'yxati va ularning buyurtmalari",
@@ -85,10 +86,12 @@ export default function Settings(_: { arg: string | null }) {
       <div className="card">
         <h2 style={{ marginBottom: 10 }}>Buyurtma holatlari</h2>
         <div className="muted small" style={{ lineHeight: 1.7 }}>
-          Yangi → <b className="gold">Tekshiruvda</b> (tekshiruvchi qo'ng'iroq qilib tekshiradi) → Tasdiqlandi → <b style={{ color: '#5fe0d6' }}>Dastavkaga</b> (qadoqlangan, kuryerni kutmoqda) → Yo'lda → Yetkazildi.
+          Yangi → <b className="gold">Tekshiruvda</b> (tekshiruvchi qo'ng'iroq qilib tekshiradi) → Tasdiqlandi → <b style={{ color: '#5fe0d6' }}>Dastavkaga</b> (kuryerga berilgan, yetkazilmoqda) → Yetkazildi.
           Xodim holatni o'zgartirsa, buyurtma tarixida uning ismi yoziladi.
         </div>
       </div>
+
+      <Cleanup />
 
       {form ? <StaffForm staff={form === 'new' ? null : form} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} /> : null}
       {rm ? (
@@ -170,5 +173,85 @@ function StaffForm({ staff: s, onClose, onSaved }: { staff: Staff | null; onClos
         </div>
       </div>
     </Drawer>
+  );
+}
+
+type Counts = { orders: number; customers: number; expenses: number };
+
+/** Danger zone: wipe orders / customers / expenses (e.g. test data). Needs the word TOZALASH typed in. */
+function Cleanup() {
+  const { data, reload } = useLoad<Counts>('/api/admin/cleanup');
+  const [pick, setPick] = useState({ orders: false, customers: false, expenses: false, restock: false });
+  const [ask, setAsk] = useState(false);
+  const [word, setWord] = useState('');
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const set = (k: keyof typeof pick, v: boolean) => setPick(p => {
+    const n = { ...p, [k]: v };
+    if (k === 'customers' && v) n.orders = true;          // customers are removed together with their orders
+    if (k === 'orders' && !v) { n.customers = false; n.restock = false; }
+    return n;
+  });
+  const any = pick.orders || pick.customers || pick.expenses;
+  const items = [
+    pick.orders && `${data?.orders ?? 0} ta buyurtma`,
+    pick.customers && `${data?.customers ?? 0} ta mijoz`,
+    pick.expenses && `${data?.expenses ?? 0} ta xarajat`,
+  ].filter(Boolean).join(', ');
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      const r = await post<{ deleted: Counts }>('/api/admin/cleanup', { ...pick, confirm: word });
+      toast(`O'chirildi: ${r.deleted.orders} buyurtma, ${r.deleted.customers} mijoz, ${r.deleted.expenses} xarajat`);
+      setAsk(false); setWord(''); setPick({ orders: false, customers: false, expenses: false, restock: false }); reload();
+    } catch (e) { toast((e as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  const Row = ({ k, title, text, n }: { k: keyof typeof pick; title: string; text: string; n?: number }) => (
+    <label className="perm-row" style={{ cursor: 'pointer' }}>
+      <div style={{ minWidth: 0, flex: '1 1 220px' }}>
+        <div style={{ fontWeight: 800 }}>{title}{n !== undefined ? <span className="muted" style={{ fontWeight: 600 }}> · {n} ta</span> : null}</div>
+        <div className="muted small">{text}</div>
+      </div>
+      <input type="checkbox" className="check" checked={pick[k]} onChange={e => set(k, e.target.checked)} />
+    </label>
+  );
+
+  return (
+    <div className="card danger-zone">
+      <div className="row" style={{ gap: 10, marginBottom: 4 }}>
+        <span className="confirm-ic" style={{ width: 36, height: 36, margin: 0 }}><Icon name="trash" size={17} /></span>
+        <div>
+          <h2>Ma'lumotlarni tozalash</h2>
+          <div className="muted small">Masalan, sinov buyurtmalarini o'chirish uchun. O'chirilgan ma'lumotni qaytarib bo'lmaydi.</div>
+        </div>
+      </div>
+      <Row k="orders" title="Buyurtmalar" text="Barcha buyurtmalar, ularning tovarlari va tarixi" n={data?.orders} />
+      {pick.orders ? <Row k="restock" title="Tovarlarni skladga qaytarish" text="Yetkazilgan buyurtmalardagi tovarlar sklad qoldig'iga qo'shiladi (sinov buyurtmalari uchun)" /> : null}
+      <Row k="customers" title="Mijozlar" text="Mijozlar ro'yxati (buyurtmalar bilan birga o'chadi)" n={data?.customers} />
+      <Row k="expenses" title="Xarajatlar" text="Moliya bo'limidagi kiritilgan xarajatlar" n={data?.expenses} />
+      <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
+        <button className="confirm-btn danger" disabled={!any} onClick={() => setAsk(true)}>Tanlanganlarni o'chirish</button>
+      </div>
+
+      {ask ? createPortal(
+        <>
+          <div className="overlay" style={{ zIndex: 60 }} onClick={() => !busy && setAsk(false)} />
+          <div className="confirm card" role="alertdialog" aria-modal>
+            <div className="confirm-ic"><Icon name="alert" size={22} /></div>
+            <h2>Rostdan o'chirasizmi?</h2>
+            <div className="muted" style={{ marginTop: 8, lineHeight: 1.55, fontSize: 14 }}>
+              <b style={{ color: 'var(--ink)' }}>{items}</b> butunlay o'chiriladi va qaytarib bo'lmaydi. Tasdiqlash uchun pastga <b className="gold">TOZALASH</b> deb yozing.
+            </div>
+            <input className="input" style={{ marginTop: 14 }} autoFocus value={word} onChange={e => setWord(e.target.value)} placeholder="TOZALASH" />
+            <div className="row" style={{ marginTop: 18, gap: 10, justifyContent: 'flex-end' }}>
+              <button className="confirm-btn ghost" disabled={busy} onClick={() => { setAsk(false); setWord(''); }}>Bekor qilish</button>
+              <button className="confirm-btn danger" disabled={busy || word.trim().toUpperCase() !== 'TOZALASH'} onClick={run}>{busy ? "O'chirilmoqda…" : "O'chirish"}</button>
+            </div>
+          </div>
+        </>, document.body) : null}
+    </div>
   );
 }
