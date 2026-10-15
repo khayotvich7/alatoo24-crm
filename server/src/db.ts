@@ -105,6 +105,30 @@ if (!(db.prepare('PRAGMA table_info(products)').all() as { name: string }[]).som
   db.exec('ALTER TABLE products ADD COLUMN deleted_at TEXT');
 }
 
+// Staff accounts (the owner logs in with ADMIN_USERNAME/ADMIN_PASSWORD) and business expenses.
+db.exec(`
+CREATE TABLE IF NOT EXISTS staff (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  phone       TEXT NOT NULL DEFAULT '',
+  login       TEXT NOT NULL UNIQUE,
+  pass        TEXT NOT NULL,                -- scrypt "salt:hash"
+  perms       TEXT NOT NULL DEFAULT '{}',   -- {"orders":0|1|2,"products":..,"stock":..,"customers":..}
+  active      INTEGER NOT NULL DEFAULT 1,
+  ver         INTEGER NOT NULL DEFAULT 1,   -- bumped on password change / block: old sessions stop working
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS expenses (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  day         TEXT NOT NULL,                -- YYYY-MM-DD, Tashkent date
+  category    TEXT NOT NULL,
+  amount      INTEGER NOT NULL,
+  note        TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS expenses_day ON expenses(day);
+`);
+
 export type Row = Record<string, unknown>;
 
 export const all = <T = Row>(sql: string, ...params: unknown[]) => db.prepare(sql).all(...(params as never[])) as T[];
