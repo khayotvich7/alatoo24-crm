@@ -1,8 +1,8 @@
-import { Eye, EyeOff, Pencil, Plus, Save, X } from 'lucide-react';
+import { Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { MetalButton } from '@/components/ui/metal-button';
-import { api, type Bundle, money, patch, post, short, type Product } from '../api';
-import { Drawer, Empty, Field, Search, Stat, useLoad, useToast } from '../ui';
+import { api, type Bundle, del, money, patch, post, short, type Product } from '../api';
+import { Confirm, Drawer, Empty, Field, Search, Stat, useLoad, useToast } from '../ui';
 
 const PRESETS: Record<string, Bundle[]> = {
   units: [{ label: '1 dona', mult: 1 }, { label: '2 dona', mult: 2, off: '−5%' }, { label: '3 dona', mult: 3, off: '−10%' }],
@@ -16,6 +16,8 @@ export default function Products(_: { arg: string | null }) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState('');
   const [edit, setEdit] = useState<Product | null>(null);
+  const [rm, setRm] = useState<Product | null>(null);
+  const [rmBusy, setRmBusy] = useState(false);
   const toast = useToast();
   const cats = useMemo(() => [...new Set((data?.products ?? []).map(p => p.category).filter(Boolean))], [data]);
   const list = (data?.products ?? []).filter(p => (!cat || p.category === cat) && p.name.toLowerCase().includes(q.toLowerCase()));
@@ -23,6 +25,14 @@ export default function Products(_: { arg: string | null }) {
   const toggle = async (p: Product) => {
     try { await patch(`/api/admin/products/${p.id}`, { active: !p.active }); toast(p.active ? 'Ilovadan yashirildi' : 'Ilovada ko‘rinadi'); reload(); }
     catch (e) { toast((e as Error).message); }
+  };
+
+  const remove = async () => {
+    if (!rm) return;
+    setRmBusy(true);
+    try { await del(`/api/admin/products/${rm.id}`); toast('Tovar o‘chirildi'); setRm(null); setEdit(null); reload(); }
+    catch (e) { toast((e as Error).message); }
+    finally { setRmBusy(false); }
   };
 
   const all = data?.products ?? [];
@@ -78,6 +88,7 @@ export default function Products(_: { arg: string | null }) {
                 <div className="row" style={{ marginTop: 14, gap: 8 }}>
                   <MetalButton lite size="sm" block icon={<Pencil size={14} />} onClick={() => setEdit(p)}>Tahrirlash</MetalButton>
                   <MetalButton lite size="sm" tone="ghost" title={p.active ? 'Ilovadan yashirish' : "Ilovada ko'rsatish"} onClick={() => toggle(p)}>{p.active ? <EyeOff size={15} /> : <Eye size={15} />}</MetalButton>
+                  <button className="del-btn" title="O'chirish" aria-label={`${p.name} — o'chirish`} onClick={() => setRm(p)}><Trash2 size={15} /></button>
                 </div>
               </div>
             </div>
@@ -85,7 +96,16 @@ export default function Products(_: { arg: string | null }) {
         </div>
       )}
 
-      {edit ? <ProductForm product={edit} cats={cats} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} /> : null}
+      {edit ? <ProductForm product={edit} cats={cats} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} onDelete={() => setRm(edit)} /> : null}
+      {rm ? (
+        <Confirm
+          title="Tovarni o‘chirasizmi?"
+          text={<><b style={{ color: 'var(--ink)' }}>«{rm.name}»</b> ilovadan ham, CRM ro‘yxatidan ham olib tashlanadi. Eski buyurtmalardagi ma'lumotlar saqlanib qoladi.</>}
+          busy={rmBusy}
+          onOk={remove}
+          onCancel={() => setRm(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -104,7 +124,7 @@ export function CreateProduct(_: { arg: string | null }) {
   return <ProductForm key={k} page product={null} cats={cats} onClose={() => { location.hash = 'products'; }} onSaved={() => setK(x => x + 1)} />;
 }
 
-function ProductForm({ product: p, cats, onClose, onSaved, page }: { product: Product | null; cats: string[]; onClose: () => void; onSaved: () => void; page?: boolean }) {
+function ProductForm({ product: p, cats, onClose, onSaved, onDelete, page }: { product: Product | null; cats: string[]; onClose: () => void; onSaved: () => void; onDelete?: () => void; page?: boolean }) {
   const toast = useToast();
   const [f, setF] = useState<Form>(() => ({
     name: p?.name ?? '', short: p?.short ?? '', category: p?.category ?? '', price: p ? String(p.price) : '', oldPrice: p?.oldPrice ? String(p.oldPrice) : '',
@@ -156,6 +176,7 @@ function ProductForm({ product: p, cats, onClose, onSaved, page }: { product: Pr
   const actions = <>
     <MetalButton tone="emerald" disabled={busy || uploading} icon={<Save size={16} />} onClick={save}>{busy ? 'Saqlanmoqda…' : p ? 'Saqlash' : "Tovarni qo'shish"}</MetalButton>
     <MetalButton tone="ghost" icon={<X size={16} />} onClick={onClose}>{page ? 'Tovarlarga qaytish' : 'Bekor'}</MetalButton>
+    {p && onDelete ? <MetalButton tone="ruby" icon={<Trash2 size={16} />} onClick={onDelete} style={{ marginLeft: 'auto' }}>O‘chirish</MetalButton> : null}
   </>;
 
   return wrap(page, onClose, actions, <>
