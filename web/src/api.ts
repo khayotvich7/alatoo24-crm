@@ -111,6 +111,7 @@ export type Area = 'orders' | 'products' | 'stock' | 'customers';
 export type Perms = Record<Area, number>;
 export type Me = { id: number; role: 'owner' | 'staff'; name: string; login: string; perms: Perms };
 export type Staff = { id: number; name: string; phone: string; login: string; active: boolean; perms: Perms; createdAt: string };
+export type ApiKey = { id: number; name: string; prefix: string; perms: Perms; lastUsed: string | null; createdAt: string };
 
 export const AREA_LABEL: Record<Area, string> = { orders: 'Buyurtmalar', products: 'Tovarlar', stock: 'Sklad', customers: 'Mijozlar' };
 
