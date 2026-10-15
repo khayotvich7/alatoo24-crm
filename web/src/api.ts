@@ -30,7 +30,7 @@ export const del = <T>(path: string) => api<T>(path, { method: 'DELETE' });
 
 // ---- types shared by pages ----
 
-export type Status = 'new' | 'checking' | 'confirmed' | 'ready' | 'courier' | 'delivered' | 'cancelled';
+export type Status = 'new' | 'checking' | 'confirmed' | 'ready' | 'delivered' | 'cancelled';
 
 export type OrderRow = {
   id: number; no: number; status: Status; name: string; phone: string; phone2: string;
@@ -99,11 +99,10 @@ export const STATUS: Record<Status, { label: string; tone: string }> = {
   checking: { label: 'Tekshiruvda', tone: 'gold' },
   confirmed: { label: 'Tasdiqlandi', tone: 'violet' },
   ready: { label: 'Dastavkaga', tone: 'teal' },
-  courier: { label: "Yo'lda", tone: 'amber' },
   delivered: { label: 'Yetkazildi', tone: 'green' },
   cancelled: { label: 'Bekor', tone: 'red' },
 };
-export const FLOW: Status[] = ['new', 'checking', 'confirmed', 'ready', 'courier', 'delivered'];
+export const FLOW: Status[] = ['new', 'checking', 'confirmed', 'ready', 'delivered'];
 
 // ---- users & access ----
 
