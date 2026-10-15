@@ -114,7 +114,7 @@ app.register(async admin => {
   });
 
   // Products
-  admin.get('/products', async () => ({ products: all('SELECT * FROM products ORDER BY sort, id').map(p => productOut(p, true)) }));
+  admin.get('/products', async () => ({ products: all('SELECT * FROM products WHERE deleted_at IS NULL ORDER BY sort, id').map(p => productOut(p, true)) }));
   admin.post('/products', async (req, reply) => {
     const b = req.body as ProductInput & { stock?: number };
     const id = tx(() => {
@@ -130,6 +130,13 @@ app.register(async admin => {
     return { product: productOut(one('SELECT * FROM products WHERE id = ?', id)!, true) };
   });
 
+  // Remove a product: hidden from the app and the CRM; order history keeps pointing at the row.
+  admin.delete('/products/:id', async req => {
+    const id = Number((req.params as { id: string }).id);
+    if (!one('SELECT id FROM products WHERE id = ? AND deleted_at IS NULL', id)) throw new HttpError(404, 'Tovar topilmadi');
+    run("UPDATE products SET deleted_at = datetime('now'), active = 0, updated_at = datetime('now') WHERE id = ?", id);
+    return { ok: true };
+  });
   admin.post('/upload', async req => {
     const f = await req.file();
     if (!f) throw new HttpError(400, 'Fayl yo‘q');

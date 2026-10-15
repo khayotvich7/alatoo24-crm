@@ -100,6 +100,11 @@ CREATE TABLE IF NOT EXISTS stock_moves (
 );
 `);
 
+// Migration: products are removed with a soft delete (deleted_at) so old orders keep their product rows.
+if (!(db.prepare('PRAGMA table_info(products)').all() as { name: string }[]).some(c => c.name === 'deleted_at')) {
+  db.exec('ALTER TABLE products ADD COLUMN deleted_at TEXT');
+}
+
 export type Row = Record<string, unknown>;
 
 export const all = <T = Row>(sql: string, ...params: unknown[]) => db.prepare(sql).all(...(params as never[])) as T[];
