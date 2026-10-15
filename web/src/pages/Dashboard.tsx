@@ -1,8 +1,18 @@
 import { useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { MetalButton } from '@/components/ui/metal-button';
+import { GlowingCard } from '@/components/ui/glowing-card';
+import { NumberTicker } from '@/components/ui/number-ticker';
+import { ShinyButton } from '@/components/ui/shiny-button';
+import { TextShimmer } from '@/components/ui/text-shimmer';
 import { type Dashboard as D, money, short, STATUS, type Status, when } from '../api';
 import { Empty, Icon, Stat, useLoad } from '../ui';
+
+const greet = () => { const h = new Date().getHours(); return h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech'; };
+const OY = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
+const KUN = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
+const today = () => { const d = new Date(); return `${KUN[d.getDay()]}, ${d.getDate()}-${OY[d.getMonth()]}`; };
+const T = ({ v, f = money }: { v: number; f?: (n: number) => string }) => <NumberTicker value={v} format={f} />;
 
 const fmtPhone = (p: string) => p.replace(/(\d{2})(\d{3})(\d{2})(\d{2})/, '$1 $2 $3 $4');
 
@@ -19,35 +29,32 @@ export default function Dashboard(_: { arg: string | null }) {
     <div className="stack" style={{ gap: 16 }}>
       <div className="head" style={{ marginBottom: 4 }}>
         <div>
-          <h1>Bosh panel</h1>
-          <div className="muted small" style={{ marginTop: 6 }}>Har 30 soniyada avtomatik yangilanadi</div>
+          <div className="small" style={{ color: 'var(--gold)', fontWeight: 800, letterSpacing: '.22em', textTransform: 'uppercase' }}>{greet()}, admin</div>
+          <TextShimmer as="h1" className="dash-title">Bosh panel</TextShimmer>
+          <div className="muted small" style={{ marginTop: 6 }}>{today()} · har 30 soniyada yangilanadi</div>
         </div>
-        <div className="actions"><MetalButton size="sm" tone="ghost" icon={<RefreshCw size={15} />} onClick={reload}>Yangilash</MetalButton></div>
+        <div className="actions"><ShinyButton tone="gold" className="shiny-sm" onClick={reload}><RefreshCw size={15} /> Yangilash</ShinyButton></div>
       </div>
 
       {/* Headline: everything customers have ordered (cancellations excluded). */}
-      <div className="hero-total">
-        <svg className="ridge" viewBox="0 0 400 200" preserveAspectRatio="none" aria-hidden>
-          <path d="M0 150 L60 90 L100 120 L170 40 L240 120 L290 80 L350 130 L400 100 L400 200 L0 200Z" fill="#2fbf7a" opacity=".18" />
-          <path d="M0 175 L80 135 L150 165 L220 120 L300 160 L360 140 L400 160 L400 200 L0 200Z" fill="#e3c98f" opacity=".1" />
-        </svg>
+      <GlowingCard>
         <div className="k">Jami buyurtmalar summasi</div>
-        <div className="v num metal-text">{money(d.ordered.s)}</div>
+        <span className="v gold-text"><T v={d.ordered.s} /></span>
         <div className="s">{d.ordered.n} ta buyurtma · bugun +{money(d.orderedToday.s)} ({d.orderedToday.n} ta)</div>
+      </GlowingCard>
+
+      <div className="grid g4">
+        <Stat k="Umumiy savdo" v={<T v={ss('delivered').s} />} s="naqd pul olingan" icon="cash" tone="gold" onClick={go('analytics')} />
+        <Stat k="Yo'lda" v={<T v={onWay.s} />} s={`${onWay.n} ta buyurtma · tasdiqlangan va kuryerda`} icon="truck" tone="amber" onClick={go('orders')} />
+        <Stat k="Otkaz (bekor)" v={<T v={ss('cancelled').s} />} s={`${ss('cancelled').n} ta buyurtma`} icon="ban" tone="red" onClick={go('orders')} />
+        <Stat k="Yetib bordi" v={<T v={ss('delivered').n} f={n => `${n} ta`} />} s={`${money(ss('delivered').s)} · o'rtacha ${short(ss('delivered').n ? ss('delivered').s / ss('delivered').n : 0)}`} icon="check" tone="green" onClick={go('orders')} />
       </div>
 
       <div className="grid g4">
-        <Stat k="Umumiy savdo" v={money(ss('delivered').s)} s="naqd pul olingan" icon="cash" tone="gold" onClick={go('analytics')} />
-        <Stat k="Yo'lda" v={money(onWay.s)} s={`${onWay.n} ta buyurtma · tasdiqlangan va kuryerda`} icon="truck" tone="amber" onClick={go('orders')} />
-        <Stat k="Otkaz (bekor)" v={money(ss('cancelled').s)} s={`${ss('cancelled').n} ta buyurtma`} icon="ban" tone="red" onClick={go('orders')} />
-        <Stat k="Yetib bordi" v={`${ss('delivered').n} ta`} s={`${money(ss('delivered').s)} · o'rtacha ${short(ss('delivered').n ? ss('delivered').s / ss('delivered').n : 0)}`} icon="check" tone="green" onClick={go('orders')} />
-      </div>
-
-      <div className="grid g4">
-        <Stat k="Bugungi savdo" v={short(d.today.s)} s={`${d.today.n} ta yetkazildi`} icon="clock" tone="green" />
-        <Stat k="7 kun" v={short(d.week.s)} s={`${d.week.n} ta yetkazildi`} icon="chart" tone="blue" />
-        <Stat k="Shu oy" v={short(d.month.s)} s={`${d.month.n} ta yetkazildi`} icon="chart" tone="violet" />
-        <Stat k="Yangi buyurtmalar" v={ss('new').n} s="tasdiqlash kutilmoqda" icon="orders" tone="gold" onClick={go('orders')} />
+        <Stat k="Bugungi savdo" v={<T v={d.today.s} f={short} />} s={`${d.today.n} ta yetkazildi`} icon="clock" tone="green" />
+        <Stat k="7 kun" v={<T v={d.week.s} f={short} />} s={`${d.week.n} ta yetkazildi`} icon="chart" tone="blue" />
+        <Stat k="Shu oy" v={<T v={d.month.s} f={short} />} s={`${d.month.n} ta yetkazildi`} icon="chart" tone="violet" />
+        <Stat k="Yangi buyurtmalar" v={<T v={ss('new').n} f={n => String(n)} />} s="tasdiqlash kutilmoqda" icon="orders" tone="gold" onClick={go('orders')} />
       </div>
 
       <div className="grid g3">
