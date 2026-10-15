@@ -2,7 +2,7 @@ import { Pencil, Plus, Save, Trash2, UserPlus, X } from 'lucide-react';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MetalButton } from '@/components/ui/metal-button';
-import { type Area, AREA_LABEL, del, patch, type Perms, post, type Staff } from '../api';
+import { type ApiKey, type Area, AREA_LABEL, del, patch, type Perms, post, type Staff, when } from '../api';
 import { Confirm, Drawer, Empty, Field, Icon, useLoad, useToast } from '../ui';
 
 const AREAS: Area[] = ['orders', 'products', 'stock', 'customers'];
@@ -90,6 +90,8 @@ export default function Settings(_: { arg: string | null }) {
           Xodim holatni o'zgartirsa, buyurtma tarixida uning ismi yoziladi.
         </div>
       </div>
+
+      <ApiKeys />
 
       <Cleanup />
 
@@ -252,6 +254,120 @@ function Cleanup() {
             </div>
           </div>
         </>, document.body) : null}
+    </div>
+  );
+}
+
+const API_BASE = 'https://www.alatoo24.uz';
+
+/** API keys for the owner's other sites/services. A key is shown in full only once, right after it is created. */
+function ApiKeys() {
+  const { data, reload } = useLoad<{ keys: ApiKey[] }>('/api/admin/api-keys');
+  const [adding, setAdding] = useState(false);
+  const [name, setName] = useState('');
+  const [perms, setPerms] = useState<Perms>({ orders: 1, products: 1, stock: 1, customers: 0 });
+  const [fresh, setFresh] = useState<string | null>(null);
+  const [rm, setRm] = useState<ApiKey | null>(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+
+  const create = async () => {
+    setBusy(true);
+    try {
+      const r = await post<{ key: string }>('/api/admin/api-keys', { name, perms });
+      setFresh(r.key); setAdding(false); setName(''); reload();
+    } catch (e) { toast((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const remove = async () => {
+    if (!rm) return;
+    setBusy(true);
+    try { await del(`/api/admin/api-keys/${rm.id}`); toast("Kalit o'chirildi — endi ishlamaydi"); setRm(null); reload(); }
+    catch (e) { toast((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const copy = async (t: string) => { try { await navigator.clipboard.writeText(t); toast('Nusxa olindi'); } catch { toast('Belgilab, qo‘lda nusxa oling'); } };
+
+  return (
+    <div className="card">
+      <div className="row between wrap" style={{ gap: 10 }}>
+        <div className="row" style={{ gap: 10 }}>
+          <span className="confirm-ic" style={{ width: 36, height: 36, margin: 0, color: 'var(--gold)', background: 'var(--gold-soft)', boxShadow: 'inset 0 0 0 1px rgba(227,201,143,.35)' }}><Icon name="shield" size={17} /></span>
+          <div>
+            <h2>API kalitlari</h2>
+            <div className="muted small">Boshqa saytingiz yoki dasturingizni CRMga ulash uchun</div>
+          </div>
+        </div>
+        <MetalButton size="sm" tone="emerald" icon={<Plus size={15} />} onClick={() => setAdding(true)}>Kalit yaratish</MetalButton>
+      </div>
+
+      {data?.keys.length ? (
+        <div style={{ marginTop: 10 }}>
+          {data.keys.map(k => (
+            <div key={k.id} className="perm-row">
+              <div style={{ minWidth: 0, flex: '1 1 260px' }}>
+                <div style={{ fontWeight: 800 }}>{k.name} <code className="kcode">{k.prefix}…</code></div>
+                <div className="muted small">
+                  {AREAS.filter(a => k.perms[a]).map(a => `${AREA_LABEL[a]}: ${LEVEL_TEXT[k.perms[a]]}`).join(' · ') || 'ruxsat yo‘q'}
+                  {' · '}{k.lastUsed ? `oxirgi marta: ${when(k.lastUsed)}` : 'hali ishlatilmagan'}
+                </div>
+              </div>
+              <button className="del-btn" title="Kalitni o'chirish" aria-label={`${k.name} — o'chirish`} onClick={() => setRm(k)}><Trash2 size={15} /></button>
+            </div>
+          ))}
+        </div>
+      ) : <div className="muted small" style={{ marginTop: 12 }}>Hali kalit yo'q. "Kalit yaratish" tugmasini bosing.</div>}
+
+      {adding ? (
+        <Drawer title="Yangi API kalit" onClose={() => setAdding(false)} footer={<>
+          <MetalButton tone="emerald" disabled={busy} icon={<Save size={16} />} onClick={create}>{busy ? 'Yaratilmoqda…' : 'Yaratish'}</MetalButton>
+          <MetalButton tone="ghost" icon={<X size={16} />} onClick={() => setAdding(false)}>Bekor</MetalButton>
+        </>}>
+          <div className="card stack">
+            <Field label="Nomi (qaysi sayt uchun)"><input className="input" autoFocus value={name} onChange={e => setName(e.target.value)} placeholder="Masalan: Asosiy sayt" /></Field>
+          </div>
+          <div className="card stack">
+            <h3>Kalit bilan nimalarni qilish mumkin</h3>
+            <div>
+              {AREAS.map(a => (
+                <div key={a} className="perm-row">
+                  <div style={{ fontWeight: 800 }}>{AREA_LABEL[a]}</div>
+                  <div className="seg">
+                    {LEVELS.filter(l => a !== 'customers' || l.v < 2).map(l => (
+                      <button key={l.v} type="button" className={`${perms[a] === l.v ? 'on' : ''}${l.v === 0 ? ' none' : ''}`} onClick={() => setPerms(p => ({ ...p, [a]: l.v }))}>{l.label}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="muted small">Moliya, xodimlar va pul summalari kalit orqali hech qachon berilmaydi.</div>
+          </div>
+        </Drawer>
+      ) : null}
+
+      {fresh ? createPortal(
+        <>
+          <div className="overlay" style={{ zIndex: 60 }} />
+          <div className="confirm card" role="dialog" aria-modal style={{ width: 'min(560px, calc(100vw - 32px))' }}>
+            <h2>Kalit tayyor</h2>
+            <div className="muted small" style={{ marginTop: 6 }}>Nusxa olib, xavfsiz joyga saqlang. <b className="gold">Bu kalit faqat hozir bir marta ko'rsatiladi.</b></div>
+            <div className="keybox"><code>{fresh}</code><button className="confirm-btn" onClick={() => copy(fresh)}>Nusxa olish</button></div>
+            <div className="muted small" style={{ lineHeight: 1.6 }}>
+              Ulash: so'rovga <code className="kcode">X-API-Key</code> sarlavhasini qo'shing. Masalan:
+            </div>
+            <pre className="codeblock">{`GET ${API_BASE}/api/admin/orders
+X-API-Key: ${fresh}`}</pre>
+            <div className="muted small" style={{ lineHeight: 1.6 }}>
+              Manzillar: <code className="kcode">/api/admin/orders</code>, <code className="kcode">/api/admin/orders/ID</code>, <code className="kcode">/api/admin/products</code>, <code className="kcode">/api/admin/customers</code>, <code className="kcode">/api/admin/stock/moves</code>.
+              Kalitni faqat saytingizning <b>server</b> qismida saqlang — sahifa kodiga (brauzerga) qo'ymang, aks holda uni boshqalar ko'rib qoladi.
+            </div>
+            <div className="row" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
+              <button className="confirm-btn danger" onClick={() => setFresh(null)}>Saqladim, yopish</button>
+            </div>
+          </div>
+        </>, document.body) : null}
+
+      {rm ? <Confirm title="Kalitni o'chirasizmi?" text={<><b style={{ color: 'var(--ink)' }}>{rm.name}</b> kaliti darhol ishlamay qoladi. Shu kalit qo'yilgan sayt CRMga ulana olmaydi.</>} busy={busy} onOk={remove} onCancel={() => setRm(null)} /> : null}
     </div>
   );
 }
