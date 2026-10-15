@@ -303,6 +303,8 @@ function ApiKeys() {
 
   return (
     <div className="stack">
+    <ArdenCard />
+
     <div className="card api-hero">
       <div className="row between wrap" style={{ gap: 16 }}>
         <div className="row" style={{ gap: 16 }}>
@@ -402,6 +404,65 @@ X-API-Key: ${fresh}`}</pre>
 
       {rm ? <Confirm title="Kalitni o'chirasizmi?" text={<><b style={{ color: 'var(--ink)' }}>{rm.name}</b> kaliti darhol ishlamay qoladi. Shu kalit qo'yilgan sayt CRMga ulana olmaydi.</>} busy={busy} onOk={remove} onCancel={() => setRm(null)} /> : null}
     </div>
+    </div>
+  );
+}
+
+type Integ = { connected: boolean; last4?: string; createdAt?: string; usedAt?: string | null };
+
+/** Read-only key for Arden (seller control centre): created here, shown once, can be revoked. Feed: GET /api/partner/feed */
+function ArdenCard() {
+  const { data, reload } = useLoad<Integ>('/api/admin/integration');
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [sure, setSure] = useState(false);
+  const toast = useToast();
+  const create = async () => {
+    setBusy(true);
+    try { const r = await post<{ key: string }>('/api/admin/integration', {}); setKey(r.key); setSure(false); reload(); }
+    catch (e) { toast((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const revoke = async () => {
+    setBusy(true);
+    try { await del('/api/admin/integration'); setKey(''); setSure(false); reload(); toast('Arden kaliti bekor qilindi'); }
+    catch (e) { toast((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  const copy = async () => { try { await navigator.clipboard.writeText(key); toast('Nusxa olindi'); } catch { toast('Kalitni belgilab, qo‘lda nusxa oling'); } };
+  const t = (iso?: string | null) => (iso ? when(iso.replace('T', ' ').slice(0, 19)) : '—');
+
+  return (
+    <div className="card api-hero arden">
+      <div className="row between wrap" style={{ gap: 16 }}>
+        <div className="row" style={{ gap: 16 }}>
+          <span className="api-ic"><Icon name="chart" size={28} /></span>
+          <div>
+            <h2 className="api-title">Arden integratsiyasi</h2>
+            <div className="muted" style={{ marginTop: 4 }}>Arden markazi buyurtma, ombor va analitikani o‘qiy oladi. Mijozlarning ismi va telefoni berilmaydi, hech narsa o‘zgartirilmaydi.</div>
+          </div>
+        </div>
+        {data?.connected ? <span className="badge t-green" style={{ fontSize: 13 }}>Ulangan · …{data.last4}</span> : <span className="badge t-amber" style={{ fontSize: 13 }}>Ulanmagan</span>}
+      </div>
+
+      {key ? (
+        <div style={{ marginTop: 18 }}>
+          <div style={{ fontWeight: 700 }}>Yangi kalit — faqat hozir ko‘rinadi. Uni Arden’dagi «Loyiha qo‘shish» oynasiga qo‘ying:</div>
+          <div className="keybox big"><code>{key}</code><button className="confirm-btn danger" style={{ background: 'linear-gradient(180deg,#2fbf7a,#15703b)' }} onClick={copy}>Nusxa olish</button></div>
+          <button className="confirm-btn ghost" onClick={() => setKey('')}>Saqladim, yopish</button>
+        </div>
+      ) : (
+        <div className="row wrap" style={{ gap: 10, marginTop: 18, alignItems: 'center' }}>
+          <MetalButton size="lg" tone="emerald" disabled={busy} icon={<Plus size={18} />} onClick={create}>{data?.connected ? 'Yangi kalit berish' : 'Arden uchun kalit yaratish'}</MetalButton>
+          {data?.connected ? (
+            sure
+              ? <><span className="small" style={{ color: '#ff8b80' }}>Arden ulanishi uziladi. Ishonchingiz komilmi?</span><button className="confirm-btn danger" disabled={busy} onClick={revoke}>Ha, bekor qilish</button><button className="confirm-btn ghost" onClick={() => setSure(false)}>Yo‘q</button></>
+              : <button className="confirm-btn ghost" onClick={() => setSure(true)}>Kalitni bekor qilish</button>
+          ) : null}
+          {data?.connected ? <span className="muted small">Yaratilgan: {t(data.createdAt)} · oxirgi ulanish: {t(data.usedAt)}</span> : null}
+        </div>
+      )}
+      {data?.connected && !key ? <div className="muted small" style={{ marginTop: 10 }}>Yangi kalit bersangiz, eskisi darhol ishlamay qoladi — uni Arden’ga qayta qo‘yish kerak bo‘ladi.</div> : null}
     </div>
   );
 }
