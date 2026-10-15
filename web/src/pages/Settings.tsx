@@ -24,7 +24,14 @@ const PRESETS: { label: string; perms: Perms }[] = [
   { label: 'Omborchi', perms: { orders: 1, products: 1, stock: 2, customers: 0 } },
 ];
 
-export default function Settings(_: { arg: string | null }) {
+const TABS = [
+  { id: 'staff', label: 'Xodimlar', icon: 'users' },
+  { id: 'api', label: 'API kalitlari', icon: 'shield' },
+  { id: 'clean', label: "Ma'lumotlarni tozalash", icon: 'trash' },
+] as const;
+
+export default function Settings({ arg }: { arg: string | null }) {
+  const tab = TABS.some(t => t.id === arg) ? arg : 'staff';
   const { data, error, reload } = useLoad<{ staff: Staff[] }>('/api/admin/staff');
   const [form, setForm] = useState<Staff | 'new' | null>(null);
   const [rm, setRm] = useState<Staff | null>(null);
@@ -48,10 +55,18 @@ export default function Settings(_: { arg: string | null }) {
       <div className="head">
         <div>
           <h1>Sozlamalar</h1>
-          <div className="muted small" style={{ marginTop: 6 }}>Xodimlar va ularning ruxsatlari. Moliya, Analitika va Sozlamalar faqat sizga ko'rinadi.</div>
+          <div className="muted small" style={{ marginTop: 6 }}>Faqat sizga ko'rinadi</div>
         </div>
-        <div className="actions"><MetalButton tone="emerald" icon={<UserPlus size={17} />} onClick={() => setForm('new')}>Xodim qo'shish</MetalButton></div>
+        {tab === 'staff' ? <div className="actions"><MetalButton tone="emerald" icon={<UserPlus size={17} />} onClick={() => setForm('new')}>Xodim qo'shish</MetalButton></div> : null}
       </div>
+
+      <div className="tabs">
+        {TABS.map(t => (
+          <a key={t.id} href={`#settings/${t.id}`} className={`tab${tab === t.id ? ' on' : ''}`}><Icon name={t.icon} size={18} />{t.label}</a>
+        ))}
+      </div>
+
+      {tab === 'api' ? <ApiKeys /> : tab === 'clean' ? <Cleanup /> : <>
 
       {error ? <Empty title="Yuklab bo'lmadi" text={error} /> : !data ? <div className="muted">Yuklanmoqda…</div> : !data.staff.length ? (
         <div className="card"><Empty title="Hali xodim yo'q" text="Xodim qo'shing: ismi, telefoni, login va parolini kiriting, keyin nimalarni ko'ra olishini belgilang.">
@@ -91,9 +106,7 @@ export default function Settings(_: { arg: string | null }) {
         </div>
       </div>
 
-      <ApiKeys />
-
-      <Cleanup />
+      </>}
 
       {form ? <StaffForm staff={form === 'new' ? null : form} onClose={() => setForm(null)} onSaved={() => { setForm(null); reload(); }} /> : null}
       {rm ? (
@@ -289,24 +302,34 @@ function ApiKeys() {
   const copy = async (t: string) => { try { await navigator.clipboard.writeText(t); toast('Nusxa olindi'); } catch { toast('Belgilab, qo‘lda nusxa oling'); } };
 
   return (
-    <div className="card">
-      <div className="row between wrap" style={{ gap: 10 }}>
-        <div className="row" style={{ gap: 10 }}>
-          <span className="confirm-ic" style={{ width: 36, height: 36, margin: 0, color: 'var(--gold)', background: 'var(--gold-soft)', boxShadow: 'inset 0 0 0 1px rgba(227,201,143,.35)' }}><Icon name="shield" size={17} /></span>
+    <div className="stack">
+    <div className="card api-hero">
+      <div className="row between wrap" style={{ gap: 16 }}>
+        <div className="row" style={{ gap: 16 }}>
+          <span className="api-ic"><Icon name="shield" size={28} /></span>
           <div>
-            <h2>API kalitlari</h2>
-            <div className="muted small">Boshqa saytingiz yoki dasturingizni CRMga ulash uchun</div>
+            <h2 className="api-title">API kalitlari</h2>
+            <div className="muted" style={{ marginTop: 4 }}>Boshqa saytingiz yoki dasturingizni CRMga ulash uchun</div>
           </div>
         </div>
-        <MetalButton size="sm" tone="emerald" icon={<Plus size={15} />} onClick={() => setAdding(true)}>Kalit yaratish</MetalButton>
+        <MetalButton size="lg" tone="emerald" icon={<Plus size={18} />} onClick={() => setAdding(true)}>Kalit yaratish</MetalButton>
       </div>
+      <div className="steps">
+        <div><b>1</b><span>"Kalit yaratish" ni bosing, nom va ruxsatlarni tanlang</span></div>
+        <div><b>2</b><span>Chiqqan <code className="kcode">ak_…</code> kalitdan nusxa oling — u bir marta ko'rsatiladi</span></div>
+        <div><b>3</b><span>Saytingizda so'rovga <code className="kcode">X-API-Key</code> sarlavhasini qo'shing</span></div>
+      </div>
+    </div>
+
+    <div className="card">
+      <h2 style={{ marginBottom: 6 }}>Yaratilgan kalitlar</h2>
 
       {data?.keys.length ? (
         <div style={{ marginTop: 10 }}>
           {data.keys.map(k => (
             <div key={k.id} className="perm-row">
               <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-                <div style={{ fontWeight: 800 }}>{k.name} <code className="kcode">{k.prefix}…</code></div>
+                <div style={{ fontWeight: 800, fontSize: 16 }}>{k.name} <code className="kcode big">{k.prefix}…</code></div>
                 <div className="muted small">
                   {AREAS.filter(a => k.perms[a]).map(a => `${AREA_LABEL[a]}: ${LEVEL_TEXT[k.perms[a]]}`).join(' · ') || 'ruxsat yo‘q'}
                   {' · '}{k.lastUsed ? `oxirgi marta: ${when(k.lastUsed)}` : 'hali ishlatilmagan'}
@@ -316,7 +339,17 @@ function ApiKeys() {
             </div>
           ))}
         </div>
-      ) : <div className="muted small" style={{ marginTop: 12 }}>Hali kalit yo'q. "Kalit yaratish" tugmasini bosing.</div>}
+      ) : <div className="muted" style={{ marginTop: 10 }}>Hali kalit yo'q. Yuqoridagi "Kalit yaratish" tugmasini bosing.</div>}
+    </div>
+
+    <div className="card">
+      <h2 style={{ marginBottom: 6 }}>Ulash namunasi</h2>
+      <pre className="codeblock big">{`GET ${API_BASE}/api/admin/orders
+X-API-Key: ak_sizning_kalitingiz`}</pre>
+      <div className="muted small" style={{ lineHeight: 1.7 }}>
+        Manzillar: <code className="kcode">/api/admin/orders</code> <code className="kcode">/api/admin/orders/ID</code> <code className="kcode">/api/admin/products</code> <code className="kcode">/api/admin/customers</code> <code className="kcode">/api/admin/stock/moves</code><br />
+        Kalitni faqat saytingizning <b>server</b> qismida saqlang. Moliya, xodimlar va pul summalari kalit orqali berilmaydi.
+      </div>
 
       {adding ? (
         <Drawer title="Yangi API kalit" onClose={() => setAdding(false)} footer={<>
@@ -348,10 +381,10 @@ function ApiKeys() {
       {fresh ? createPortal(
         <>
           <div className="overlay" style={{ zIndex: 60 }} />
-          <div className="confirm card" role="dialog" aria-modal style={{ width: 'min(560px, calc(100vw - 32px))' }}>
-            <h2>Kalit tayyor</h2>
+          <div className="confirm card" role="dialog" aria-modal style={{ width: 'min(720px, calc(100vw - 32px))', padding: 30 }}>
+            <h2 style={{ fontSize: 22 }}>Kalit tayyor ✓</h2>
             <div className="muted small" style={{ marginTop: 6 }}>Nusxa olib, xavfsiz joyga saqlang. <b className="gold">Bu kalit faqat hozir bir marta ko'rsatiladi.</b></div>
-            <div className="keybox"><code>{fresh}</code><button className="confirm-btn" onClick={() => copy(fresh)}>Nusxa olish</button></div>
+            <div className="keybox big"><code>{fresh}</code><button className="confirm-btn danger" style={{ background: 'linear-gradient(180deg,#2fbf7a,#15703b)' }} onClick={() => copy(fresh)}>Nusxa olish</button></div>
             <div className="muted small" style={{ lineHeight: 1.6 }}>
               Ulash: so'rovga <code className="kcode">X-API-Key</code> sarlavhasini qo'shing. Masalan:
             </div>
@@ -368,6 +401,7 @@ X-API-Key: ${fresh}`}</pre>
         </>, document.body) : null}
 
       {rm ? <Confirm title="Kalitni o'chirasizmi?" text={<><b style={{ color: 'var(--ink)' }}>{rm.name}</b> kaliti darhol ishlamay qoladi. Shu kalit qo'yilgan sayt CRMga ulana olmaydi.</>} busy={busy} onOk={remove} onCancel={() => setRm(null)} /> : null}
+    </div>
     </div>
   );
 }
