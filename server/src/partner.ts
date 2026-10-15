@@ -1,7 +1,7 @@
 // Read-only feed for Arden (the seller control centre). The admin creates one key in the CRM;
 // only its SHA-256 is stored, the key itself is shown once. The feed carries no customer names or phones.
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { all, db, one, run } from './db.ts';
 import { analytics, dashboard } from './stats.ts';
 
@@ -25,18 +25,20 @@ function keyOk(given: string | undefined) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** Admin routes (already behind the CRM login): show, create and revoke the key. */
-export function partnerAdmin(admin: FastifyInstance) {
-  admin.get('/integration', async () => {
+/** Admin routes (behind the CRM login, owner only): show, create and revoke the key. */
+export function partnerAdmin(admin: FastifyInstance, guard: (req: FastifyRequest) => void) {
+  admin.get('/integration', async req => {
+    guard(req);
     const s = saved();
     return s ? { connected: true, last4: s.last4, createdAt: s.createdAt, usedAt: s.usedAt ?? null } : { connected: false };
   });
-  admin.post('/integration', async () => {
+  admin.post('/integration', async req => {
+    guard(req);
     const key = 'a24_' + randomBytes(24).toString('base64url');
     save({ hash: hash(key), last4: key.slice(-4), createdAt: new Date().toISOString() });
     return { key };
   });
-  admin.delete('/integration', async () => { save(null); return { ok: true }; });
+  admin.delete('/integration', async req => { guard(req); save(null); return { ok: true }; });
 }
 
 /** Public route guarded by the key: GET /api/partner/feed?days=30, header x-api-key. */

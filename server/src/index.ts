@@ -14,6 +14,7 @@ import {
   setStatus, type Status, STATUSES, updateProduct,
 } from './shop.ts';
 import { analytics, dashboard, finance } from './stats.ts';
+import { partnerAdmin, partnerFeed } from './partner.ts';
 
 // ---- who is calling, and what they may do ----
 type Req = FastifyRequest & { user?: User };
@@ -45,6 +46,9 @@ app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
 // ---------------- public API (mobile app) ----------------
 
 app.get('/api/health', async () => ({ ok: true }));
+
+// Read-only feed for Arden, guarded by its own key (x-api-key: a24_...).
+partnerFeed(app);
 
 app.get('/api/catalog', async () => {
   const products = all('SELECT * FROM products WHERE active = 1 ORDER BY sort, id').map(p => productOut(p));
@@ -94,6 +98,9 @@ app.register(async admin => {
   });
 
   admin.get('/me', async req => ({ user: userOf(req) }));
+
+  // Arden integration key (owner only)
+  partnerAdmin(admin, ownerOnly);
 
   // Staff see counts only; money totals are for the owner.
   admin.get('/dashboard', async req => {
