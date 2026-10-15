@@ -6,29 +6,15 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { type Area, cleanPerms, hashPassword, login, OWNER_LOGIN, PASSWORD_SOURCE, type User, verify } from './auth.ts';
+import { login, PASSWORD_SOURCE, verify } from './auth.ts';
 import { all, one, type Row, run, tx, UPLOAD_DIR } from './db.ts';
 import { notifyNewOrder } from './notify.ts';
 import {
   createOrder, createProduct, fmtPhone, getOrder, HttpError, moveStock, type OrderInput, productOut, type ProductInput, publicOrder,
   setStatus, type Status, STATUSES, updateProduct,
 } from './shop.ts';
-import { analytics, dashboard, finance } from './stats.ts';
-
-// ---- who is calling, and what they may do ----
-type Req = FastifyRequest & { user?: User };
-const userOf = (req: FastifyRequest) => (req as Req).user!;
-const NO_ACCESS = "Bu bo'lim uchun ruxsatingiz yo'q";
-/** Throws 403 unless the caller has at least `level` (1 view, 2 full) in one of the areas. */
-function need(req: FastifyRequest, level: 1 | 2, ...areas: Area[]) {
-  const u = userOf(req);
-  if (u.role === 'owner') return;
-  if (!areas.some(a => (u.perms[a] ?? 0) >= level)) throw new HttpError(403, NO_ACCESS);
-}
-function ownerOnly(req: FastifyRequest) {
-  if (userOf(req).role !== 'owner') throw new HttpError(403, NO_ACCESS);
-}
-const isOwner = (req: FastifyRequest) => userOf(req).role === 'owner';
+import { analytics, dashboard } from './stats.ts';
+import { partnerAdmin, partnerFeed } from './partner.ts';
 
 const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' }, bodyLimit: 1_000_000 });
 await app.register(cors, { origin: true });
@@ -45,6 +31,9 @@ app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
 // ---------------- public API (mobile app) ----------------
 
 app.get('/api/health', async () => ({ ok: true }));
+
+// Read-only feed for Arden, guarded by the key the admin creates in the CRM.
+partnerFeed(app);
 
 app.get('/api/catalog', async () => {
   const products = all('SELECT * FROM products WHERE active = 1 ORDER BY sort, id').map(p => productOut(p));
@@ -87,144 +76,15 @@ app.post('/api/admin/login', async (req, reply) => {
 app.register(async admin => {
   admin.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
     const h = req.headers.authorization;
-    const u = verify(h?.startsWith('Bearer ') ? h.slice(7) : undefined);
-    if (!u) return reply.code(401).send({ error: 'Qayta kiring' });
-    (req as Req).user = u;
+    if (!verify(h?.startsWith('Bearer ') ? h.slice(7) : undefined)) return reply.code(401).send({ error: 'Qayta kiring' });
   });
 
-  admin.get('/me', async req => ({ user: userOf(req) }));
-
-  // Staff see counts only; money totals are for the owner.
-  admin.get('/dashboard', async req => {
-    const d = dashboard();
-    if (isOwner(req)) return { ...d, money: true };
-    const n = (x: { n: number }) => ({ n: x.n, s: 0 });
-    return {
-      ...d, money: false,
-      today: n(d.today), week: n(d.week), month: n(d.month), all: n(d.all), ordered: n(d.ordered), orderedToday: n(d.orderedToday),
-      statusSums: Object.fromEntries(Object.entries(d.statusSums).map(([k, v]) => [k, n(v)])),
-      pendingCash: 0,
-      newOrders: userOf(req).perms.orders ? d.newOrders.map(o => ({ ...(o as object), total: 0 })) : [],
-    };
-  });
-  admin.get('/analytics', async req => { ownerOnly(req); return analytics(Number((req.query as { days?: string }).days)); });
-
-  // Finance (owner only): cash, revenue, profit and expenses.
-  admin.get('/finance', async req => { ownerOnly(req); return finance(Number((req.query as { days?: string }).days)); });
-  admin.post('/expenses', async (req, reply) => {
-    ownerOnly(req);
-    const b = req.body as { day?: string; category?: string; amount?: number; note?: string };
-    const amount = Math.round(Number(b.amount));
-    if (!(amount > 0)) throw new HttpError(400, 'Summani kiriting');
-    const category = String(b.category ?? '').trim().slice(0, 40);
-    if (!category) throw new HttpError(400, 'Turini tanlang');
-    const day = /^\d{4}-\d{2}-\d{2}$/.test(String(b.day)) ? String(b.day) : new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
-    const id = run('INSERT INTO expenses (day, category, amount, note) VALUES (?,?,?,?)', day, category, amount, String(b.note ?? '').slice(0, 200)).lastInsertRowid;
-    return reply.code(201).send({ id: Number(id) });
-  });
-  admin.delete('/expenses/:id', async req => {
-    ownerOnly(req);
-    run('DELETE FROM expenses WHERE id = ?', Number((req.params as { id: string }).id));
-    return { ok: true };
-  });
-
-  // Data clean-up (owner only): wipe orders / customers / expenses, e.g. after testing.
-  const counts = () => ({
-    orders: one<{ n: number }>('SELECT COUNT(*) n FROM orders')!.n,
-    customers: one<{ n: number }>('SELECT COUNT(*) n FROM customers')!.n,
-    expenses: one<{ n: number }>('SELECT COUNT(*) n FROM expenses')!.n,
-  });
-  /** Removes orders; optionally puts delivered goods back into stock first. Stock history is kept, unlinked. */
-  const deleteOrders = (ids: number[] | 'all', restock: boolean) => {
-    const where = ids === 'all' ? '' : `WHERE id IN (${ids.map(Number).join(',') || 'NULL'})`;
-    if (restock) {
-      for (const o of all<{ id: number }>(`SELECT id FROM orders ${where ? `${where} AND` : 'WHERE'} status = 'delivered'`)) {
-        for (const i of all<{ product_id: number; qty: number }>('SELECT product_id, qty FROM order_items WHERE order_id = ?', o.id)) {
-          moveStock(i.product_id, 'return', i.qty, "Buyurtma o'chirildi", undefined);
-        }
-      }
-    }
-    const sub = ids === 'all' ? '' : `WHERE order_id IN (SELECT id FROM orders ${where})`;
-    run(`UPDATE stock_moves SET order_id = NULL ${sub ? sub + ' AND' : 'WHERE'} order_id IS NOT NULL`);
-    run(`DELETE FROM order_events ${sub}`);
-    run(`DELETE FROM order_items ${sub}`);
-    return Number(run(`DELETE FROM orders ${where}`).changes);
-  };
-  admin.get('/cleanup', async req => { ownerOnly(req); return counts(); });
-  admin.post('/cleanup', async req => {
-    ownerOnly(req);
-    const b = (req.body ?? {}) as { orders?: boolean; customers?: boolean; expenses?: boolean; restock?: boolean; confirm?: string };
-    if (String(b.confirm ?? '').trim().toUpperCase() !== 'TOZALASH') throw new HttpError(400, 'Tasdiqlash uchun TOZALASH deb yozing');
-    if (!b.orders && !b.customers && !b.expenses) throw new HttpError(400, "Nimani o'chirishni tanlang");
-    const done = tx(() => {
-      const r = { orders: 0, customers: 0, expenses: 0 };
-      if (b.orders || b.customers) r.orders = deleteOrders('all', !!b.restock); // customers can't exist without their orders' rows
-      if (b.customers) r.customers = Number(run('DELETE FROM customers').changes);
-      if (b.expenses) r.expenses = Number(run('DELETE FROM expenses').changes);
-      return r;
-    });
-    app.log.warn({ cleanup: done }, 'CRM data cleanup');
-    return { deleted: done, left: counts() };
-  });
-  admin.delete('/orders/:id', async req => {
-    ownerOnly(req);
-    const id = Number((req.params as { id: string }).id);
-    if (!one('SELECT id FROM orders WHERE id = ?', id)) throw new HttpError(404, 'Buyurtma topilmadi');
-    tx(() => deleteOrders([id], true));
-    return { ok: true };
-  });
-
-  // Staff accounts (owner only)
-  const staffOut = (r: Row) => ({ id: r.id, name: r.name, phone: r.phone, login: r.login, active: !!r.active, perms: cleanPerms(JSON.parse(String(r.perms || '{}'))), createdAt: r.created_at });
-  const staffInput = (b: Record<string, unknown>, creating: boolean) => {
-    const name = String(b.name ?? '').trim().slice(0, 60);
-    const login = String(b.login ?? '').trim().toLowerCase();
-    const phone = String(b.phone ?? '').replace(/[^\d+ ]/g, '').trim().slice(0, 20);
-    const password = b.password == null ? '' : String(b.password);
-    if (creating || b.name !== undefined) { if (name.length < 2) throw new HttpError(400, 'Ismini yozing'); }
-    if (creating || b.login !== undefined) {
-      if (!/^[a-z0-9._-]{3,30}$/.test(login)) throw new HttpError(400, 'Login: 3–30 ta lotin harf, raqam, nuqta yoki chiziqcha');
-      if (login === OWNER_LOGIN) throw new HttpError(400, 'Bu login band');
-    }
-    if (creating && password.length < 6) throw new HttpError(400, "Parol kamida 6 belgidan iborat bo'lsin");
-    if (!creating && password && password.length < 6) throw new HttpError(400, "Parol kamida 6 belgidan iborat bo'lsin");
-    return { name, login, phone, password };
-  };
-  admin.get('/staff', async req => { ownerOnly(req); return { staff: all('SELECT * FROM staff ORDER BY id').map(staffOut) }; });
-  admin.post('/staff', async (req, reply) => {
-    ownerOnly(req);
-    const b = (req.body ?? {}) as Record<string, unknown>;
-    const v = staffInput(b, true);
-    if (one('SELECT id FROM staff WHERE login = ?', v.login)) throw new HttpError(400, 'Bu login band');
-    const id = Number(run('INSERT INTO staff (name, phone, login, pass, perms) VALUES (?,?,?,?,?)',
-      v.name, v.phone, v.login, hashPassword(v.password), JSON.stringify(cleanPerms(b.perms))).lastInsertRowid);
-    return reply.code(201).send({ staff: staffOut(one('SELECT * FROM staff WHERE id = ?', id)!) });
-  });
-  admin.patch('/staff/:id', async req => {
-    ownerOnly(req);
-    const id = Number((req.params as { id: string }).id);
-    if (!one('SELECT id FROM staff WHERE id = ?', id)) throw new HttpError(404, 'Xodim topilmadi');
-    const b = (req.body ?? {}) as Record<string, unknown>;
-    const v = staffInput(b, false);
-    if (b.login !== undefined && one('SELECT id FROM staff WHERE login = ? AND id != ?', v.login, id)) throw new HttpError(400, 'Bu login band');
-    if (b.name !== undefined) run('UPDATE staff SET name = ? WHERE id = ?', v.name, id);
-    if (b.phone !== undefined) run('UPDATE staff SET phone = ? WHERE id = ?', v.phone, id);
-    if (b.login !== undefined) run('UPDATE staff SET login = ? WHERE id = ?', v.login, id);
-    if (b.perms !== undefined) run('UPDATE staff SET perms = ? WHERE id = ?', JSON.stringify(cleanPerms(b.perms)), id);
-    // A new password or blocking signs the person out everywhere.
-    if (v.password) run('UPDATE staff SET pass = ?, ver = ver + 1 WHERE id = ?', hashPassword(v.password), id);
-    if (b.active !== undefined) run('UPDATE staff SET active = ?, ver = ver + 1 WHERE id = ?', b.active ? 1 : 0, id);
-    return { staff: staffOut(one('SELECT * FROM staff WHERE id = ?', id)!) };
-  });
-  admin.delete('/staff/:id', async req => {
-    ownerOnly(req);
-    run('DELETE FROM staff WHERE id = ?', Number((req.params as { id: string }).id));
-    return { ok: true };
-  });
+  admin.get('/dashboard', async () => dashboard());
+  partnerAdmin(admin);
+  admin.get('/analytics', async req => analytics(Number((req.query as { days?: string }).days)));
 
   // Orders
   admin.get('/orders', async req => {
-    need(req, 1, 'orders');
     const { status, q, page } = req.query as { status?: string; q?: string; page?: string };
     const where: string[] = [], params: unknown[] = [];
     if (status && STATUSES.includes(status as Status)) { where.push('status = ?'); params.push(status); }
@@ -244,60 +104,45 @@ app.register(async admin => {
     return { total, page: p, pages: Math.max(1, Math.ceil(total / size)), orders: rows };
   });
   admin.get('/orders/:id', async req => {
-    need(req, 1, 'orders');
     const o = getOrder(Number((req.params as { id: string }).id));
     if (!o) throw new HttpError(404, 'Buyurtma topilmadi');
     return { order: o };
   });
   admin.patch('/orders/:id', async req => {
-    need(req, 2, 'orders');
     const id = Number((req.params as { id: string }).id);
     const b = req.body as { status?: Status; note?: string; adminNote?: string };
-    const who = userOf(req).role === 'staff' ? userOf(req).name : '';
     if (b.adminNote !== undefined) run("UPDATE orders SET admin_note = ?, updated_at = datetime('now') WHERE id = ?", String(b.adminNote).slice(0, 1000), id);
-    if (b.status) setStatus(id, b.status, [who, String(b.note ?? '').slice(0, 300)].filter(Boolean).join(' · '));
+    if (b.status) setStatus(id, b.status, String(b.note ?? '').slice(0, 300));
     const o = getOrder(id);
     if (!o) throw new HttpError(404, 'Buyurtma topilmadi');
     return { order: o };
   });
 
   // Products
-  // Cost prices are the owner's business.
-  const forUser = (req: FastifyRequest, p: ReturnType<typeof productOut>) => (isOwner(req) ? p : { ...p, costPrice: null });
-  admin.get('/products', async req => {
-    need(req, 1, 'products', 'stock');
-    return { products: all('SELECT * FROM products WHERE deleted_at IS NULL ORDER BY sort, id').map(p => forUser(req, productOut(p, true))) };
-  });
+  admin.get('/products', async () => ({ products: all('SELECT * FROM products WHERE deleted_at IS NULL ORDER BY sort, id').map(p => productOut(p, true)) }));
   admin.post('/products', async (req, reply) => {
-    need(req, 2, 'products');
     const b = req.body as ProductInput & { stock?: number };
-    if (!isOwner(req)) b.costPrice = null;
     const id = tx(() => {
       const id = createProduct(b);
       if (b.stock && b.stock > 0) moveStock(id, 'in', Math.floor(b.stock), "Boshlang'ich qoldiq");
       return id;
     });
-    return reply.code(201).send({ product: forUser(req, productOut(one('SELECT * FROM products WHERE id = ?', id)!, true)) });
+    return reply.code(201).send({ product: productOut(one('SELECT * FROM products WHERE id = ?', id)!, true) });
   });
   admin.patch('/products/:id', async req => {
-    need(req, 2, 'products');
     const id = Number((req.params as { id: string }).id);
-    const b = { ...(req.body as Partial<ProductInput>) };
-    if (!isOwner(req)) delete b.costPrice;
-    updateProduct(id, b);
-    return { product: forUser(req, productOut(one('SELECT * FROM products WHERE id = ?', id)!, true)) };
+    updateProduct(id, req.body as Partial<ProductInput>);
+    return { product: productOut(one('SELECT * FROM products WHERE id = ?', id)!, true) };
   });
 
   // Remove a product: hidden from the app and the CRM; order history keeps pointing at the row.
   admin.delete('/products/:id', async req => {
-    need(req, 2, 'products');
     const id = Number((req.params as { id: string }).id);
     if (!one('SELECT id FROM products WHERE id = ? AND deleted_at IS NULL', id)) throw new HttpError(404, 'Tovar topilmadi');
     run("UPDATE products SET deleted_at = datetime('now'), active = 0, updated_at = datetime('now') WHERE id = ?", id);
     return { ok: true };
   });
   admin.post('/upload', async req => {
-    need(req, 2, 'products');
     const f = await req.file();
     if (!f) throw new HttpError(400, 'Fayl yo‘q');
     const ext = extname(f.filename).toLowerCase();
@@ -310,7 +155,6 @@ app.register(async admin => {
 
   // Warehouse
   admin.get('/stock/moves', async req => {
-    need(req, 1, 'stock');
     const { productId } = req.query as { productId?: string };
     return {
       moves: all(
@@ -321,17 +165,15 @@ app.register(async admin => {
     };
   });
   admin.post('/stock', async req => {
-    need(req, 2, 'stock');
     const b = req.body as { productId: number; kind: 'in' | 'adjust' | 'writeoff'; qty: number; note?: string };
     if (!['in', 'adjust', 'writeoff'].includes(b.kind)) throw new HttpError(400, "Tur noto'g'ri");
     const qty = b.kind === 'writeoff' ? -Math.abs(b.qty) : b.kind === 'in' ? Math.abs(b.qty) : b.qty;
     tx(() => moveStock(Number(b.productId), b.kind, qty, String(b.note ?? '').slice(0, 200)));
-    return { product: forUser(req, productOut(one('SELECT * FROM products WHERE id = ?', Number(b.productId))!, true)) };
+    return { product: productOut(one('SELECT * FROM products WHERE id = ?', Number(b.productId))!, true) };
   });
 
   // Customers
   admin.get('/customers', async req => {
-    need(req, 1, 'customers');
     const { q } = req.query as { q?: string };
     const t = (q ?? '').trim(), d = t.replace(/\D/g, '');
     const rows = all<Row>(
@@ -344,7 +186,6 @@ app.register(async admin => {
     return { customers: rows.map(r => ({ ...r, phone: fmtPhone(String(r.phone)), phone2: fmtPhone(String(r.phone2)) })) };
   });
   admin.get('/customers/:id', async req => {
-    need(req, 1, 'customers');
     const id = Number((req.params as { id: string }).id);
     const c = one<Row>('SELECT id, name, phone, phone2, created_at createdAt FROM customers WHERE id = ?', id);
     if (!c) throw new HttpError(404, 'Mijoz topilmadi');
