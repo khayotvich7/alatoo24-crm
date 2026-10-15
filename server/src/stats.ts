@@ -22,7 +22,7 @@ export function dashboard() {
     ordered: one<{ n: number; s: number }>("SELECT COUNT(*) n, COALESCE(SUM(total),0) s FROM orders WHERE status != 'cancelled'")!,
     orderedToday: one<{ n: number; s: number }>(`SELECT COUNT(*) n, COALESCE(SUM(total),0) s FROM orders WHERE status != 'cancelled' AND ${day('created_at')} = ${today}`)!,
     // Cash the couriers still have to bring in: confirmed/out for delivery orders.
-    pendingCash: one<{ s: number }>("SELECT COALESCE(SUM(total),0) s FROM orders WHERE status IN ('confirmed','courier')")!.s,
+    pendingCash: one<{ s: number }>("SELECT COALESCE(SUM(total),0) s FROM orders WHERE status IN ('confirmed','ready','courier')")!.s,
     newOrders: all(`SELECT id, no, name, phone, total, created_at createdAt FROM orders WHERE status = 'new' ORDER BY id DESC LIMIT 8`),
     lowStock: all('SELECT id, name, stock, low_stock lowStock FROM products WHERE active = 1 AND stock <= low_stock ORDER BY stock LIMIT 10'),
     customers: one<{ n: number }>('SELECT COUNT(*) n FROM customers')!.n,
@@ -107,5 +107,48 @@ export function analytics(days: number) {
     repeatCustomers: one<{ n: number }>(
       "SELECT COUNT(*) n FROM (SELECT customer_id FROM orders WHERE status = 'delivered' GROUP BY customer_id HAVING COUNT(*) > 1)",
     )!.n,
+  };
+}
+
+/** Owner-only money view: cash in hand / on the way, revenue, profit after product cost and expenses. */
+export function finance(days: number) {
+  const a = analytics(days);
+  const d = a.days;
+  const today = day("'now'");
+  const from = `date(${today}, '-${d - 1} days')`;
+  const delivered = (expr: string) => one<{ s: number; n: number }>(
+    `SELECT COALESCE(SUM(total),0) s, COUNT(*) n FROM orders WHERE status = 'delivered' AND ${day('delivered_at')} >= ${expr}`,
+  )!;
+  const status = (list: string) => one<{ s: number; n: number }>(`SELECT COALESCE(SUM(total),0) s, COUNT(*) n FROM orders WHERE status IN (${list})`)!;
+  const expenses = all<{ id: number; day: string; category: string; amount: number; note: string }>(
+    `SELECT id, day, category, amount, note FROM expenses WHERE day >= ${from} ORDER BY day DESC, id DESC`,
+  );
+  const expTotal = expenses.reduce((x, e) => x + e.amount, 0);
+  const byCat = new Map<string, number>();
+  for (const e of expenses) byCat.set(e.category, (byCat.get(e.category) ?? 0) + e.amount);
+  const expByDay = new Map<string, number>();
+  for (const e of expenses) expByDay.set(e.day, (expByDay.get(e.day) ?? 0) + e.amount);
+  // Product cost of goods sold where a cost price is known.
+  const cogs = a.profit.covered - a.profit.profit;
+  const gross = a.revenue - cogs;
+  return {
+    days: d,
+    kassa: {
+      onTheWay: status("'courier'"),                // courier holds this cash right now
+      expected: status("'confirmed','ready'"),      // confirmed, not yet handed to the courier
+      today: delivered(today),
+      week: delivered(`date(${today}, '-6 days')`),
+      month: delivered(`date(${today}, 'start of month')`),
+    },
+    revenue: a.revenue,
+    orders: a.orders,
+    cogs,
+    costCoverage: a.revenue ? Math.round((a.profit.covered / a.revenue) * 100) : 0,
+    gross,
+    expenses: expTotal,
+    net: gross - expTotal,
+    expensesByCategory: [...byCat].map(([category, amount]) => ({ category, amount })).sort((x, y) => y.amount - x.amount),
+    series: a.series.map(r => ({ day: r.day, revenue: r.revenue ?? 0, expenses: expByDay.get(r.day) ?? 0 })),
+    list: expenses,
   };
 }
