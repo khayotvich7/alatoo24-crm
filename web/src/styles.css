@@ -306,7 +306,7 @@ input[type='checkbox'] { accent-color: var(--brand); width: 18px; height: 18px; 
 .table .r { text-align: right; }
 .list { display: none; }
 @media (max-width: 760px) {
-  .table.collapse { display: none; }
+  .table.m-collapse { display: none; }
   .list { display: flex; flex-direction: column; }
   .list .item { padding: 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
   .list .item:last-child { border-bottom: 0; }
