@@ -128,6 +128,52 @@ app.register(async admin => {
     return { ok: true };
   });
 
+  // Data clean-up (owner only): wipe orders / customers / expenses, e.g. after testing.
+  const counts = () => ({
+    orders: one<{ n: number }>('SELECT COUNT(*) n FROM orders')!.n,
+    customers: one<{ n: number }>('SELECT COUNT(*) n FROM customers')!.n,
+    expenses: one<{ n: number }>('SELECT COUNT(*) n FROM expenses')!.n,
+  });
+  /** Removes orders; optionally puts delivered goods back into stock first. Stock history is kept, unlinked. */
+  const deleteOrders = (ids: number[] | 'all', restock: boolean) => {
+    const where = ids === 'all' ? '' : `WHERE id IN (${ids.map(Number).join(',') || 'NULL'})`;
+    if (restock) {
+      for (const o of all<{ id: number }>(`SELECT id FROM orders ${where ? `${where} AND` : 'WHERE'} status = 'delivered'`)) {
+        for (const i of all<{ product_id: number; qty: number }>('SELECT product_id, qty FROM order_items WHERE order_id = ?', o.id)) {
+          moveStock(i.product_id, 'return', i.qty, "Buyurtma o'chirildi", undefined);
+        }
+      }
+    }
+    const sub = ids === 'all' ? '' : `WHERE order_id IN (SELECT id FROM orders ${where})`;
+    run(`UPDATE stock_moves SET order_id = NULL ${sub ? sub + ' AND' : 'WHERE'} order_id IS NOT NULL`);
+    run(`DELETE FROM order_events ${sub}`);
+    run(`DELETE FROM order_items ${sub}`);
+    return Number(run(`DELETE FROM orders ${where}`).changes);
+  };
+  admin.get('/cleanup', async req => { ownerOnly(req); return counts(); });
+  admin.post('/cleanup', async req => {
+    ownerOnly(req);
+    const b = (req.body ?? {}) as { orders?: boolean; customers?: boolean; expenses?: boolean; restock?: boolean; confirm?: string };
+    if (String(b.confirm ?? '').trim().toUpperCase() !== 'TOZALASH') throw new HttpError(400, 'Tasdiqlash uchun TOZALASH deb yozing');
+    if (!b.orders && !b.customers && !b.expenses) throw new HttpError(400, "Nimani o'chirishni tanlang");
+    const done = tx(() => {
+      const r = { orders: 0, customers: 0, expenses: 0 };
+      if (b.orders || b.customers) r.orders = deleteOrders('all', !!b.restock); // customers can't exist without their orders' rows
+      if (b.customers) r.customers = Number(run('DELETE FROM customers').changes);
+      if (b.expenses) r.expenses = Number(run('DELETE FROM expenses').changes);
+      return r;
+    });
+    app.log.warn({ cleanup: done }, 'CRM data cleanup');
+    return { deleted: done, left: counts() };
+  });
+  admin.delete('/orders/:id', async req => {
+    ownerOnly(req);
+    const id = Number((req.params as { id: string }).id);
+    if (!one('SELECT id FROM orders WHERE id = ?', id)) throw new HttpError(404, 'Buyurtma topilmadi');
+    tx(() => deleteOrders([id], true));
+    return { ok: true };
+  });
+
   // Staff accounts (owner only)
   const staffOut = (r: Row) => ({ id: r.id, name: r.name, phone: r.phone, login: r.login, active: !!r.active, perms: cleanPerms(JSON.parse(String(r.perms || '{}'))), createdAt: r.created_at });
   const staffInput = (b: Record<string, unknown>, creating: boolean) => {

@@ -128,6 +128,8 @@ CREATE TABLE IF NOT EXISTS expenses (
 );
 CREATE INDEX IF NOT EXISTS expenses_day ON expenses(day);
 `);
+// The separate "Yo'lda" (courier) step was merged into "Dastavkaga" (ready).
+db.exec("UPDATE orders SET status = 'ready' WHERE status = 'courier'");
 
 export type Row = Record<string, unknown>;
 

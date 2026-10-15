@@ -3,8 +3,9 @@ import { randomBytes } from 'node:crypto';
 import { all, one, type Row, run, tx } from './db.ts';
 
 export const PROMO = { code: 'ALATOO15', percent: 15 };
-// new → checking (Tekshiruvda) → confirmed → ready (Dastavkaga) → courier → delivered; cancelled at any point.
-export const STATUSES = ['new', 'checking', 'confirmed', 'ready', 'courier', 'delivered', 'cancelled'] as const;
+// new → checking (Tekshiruvda) → confirmed → ready (Dastavkaga, out for delivery) → delivered; cancelled at any point.
+// 'courier' is no longer used by the CRM; old orders in it are moved to 'ready' at startup (db.ts).
+export const STATUSES = ['new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'] as const;
 export type Status = (typeof STATUSES)[number];
 
 export class HttpError extends Error {
@@ -146,7 +147,7 @@ export function getOrder(id: number) {
 
 /** What the customer's app may see about its own order. */
 // The mobile app only knows the original five statuses, so internal steps are shown as their nearest one.
-const APP_STATUS: Record<string, string> = { checking: 'new', ready: 'confirmed' };
+const APP_STATUS: Record<string, string> = { checking: 'new', ready: 'courier' };
 const appStatus = (s: unknown) => APP_STATUS[String(s)] ?? s;
 export const publicOrder = (o: NonNullable<ReturnType<typeof getOrder>>) => {
   const { adminNote: _a, customerId: _c, token: _t, ...rest } = o;

@@ -21,8 +21,8 @@ export function dashboard() {
     // Everything customers ordered except cancellations: the headline number.
     ordered: one<{ n: number; s: number }>("SELECT COUNT(*) n, COALESCE(SUM(total),0) s FROM orders WHERE status != 'cancelled'")!,
     orderedToday: one<{ n: number; s: number }>(`SELECT COUNT(*) n, COALESCE(SUM(total),0) s FROM orders WHERE status != 'cancelled' AND ${day('created_at')} = ${today}`)!,
-    // Cash the couriers still have to bring in: confirmed/out for delivery orders.
-    pendingCash: one<{ s: number }>("SELECT COALESCE(SUM(total),0) s FROM orders WHERE status IN ('confirmed','ready','courier')")!.s,
+    // Cash still to come in: confirmed and out-for-delivery orders.
+    pendingCash: one<{ s: number }>("SELECT COALESCE(SUM(total),0) s FROM orders WHERE status IN ('confirmed','ready')")!.s,
     newOrders: all(`SELECT id, no, name, phone, total, created_at createdAt FROM orders WHERE status = 'new' ORDER BY id DESC LIMIT 8`),
     lowStock: all('SELECT id, name, stock, low_stock lowStock FROM products WHERE active = 1 AND stock <= low_stock ORDER BY stock LIMIT 10'),
     customers: one<{ n: number }>('SELECT COUNT(*) n FROM customers')!.n,
@@ -134,8 +134,8 @@ export function finance(days: number) {
   return {
     days: d,
     kassa: {
-      onTheWay: status("'courier'"),                // courier holds this cash right now
-      expected: status("'confirmed','ready'"),      // confirmed, not yet handed to the courier
+      onTheWay: status("'ready'"),                  // out for delivery: the courier brings this cash
+      expected: status("'checking','confirmed'"),   // being checked / confirmed, not yet sent
       today: delivered(today),
       week: delivered(`date(${today}, '-6 days')`),
       month: delivered(`date(${today}, 'start of month')`),
