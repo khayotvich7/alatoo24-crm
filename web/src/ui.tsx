@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, STATUS, type Status } from './api';
 
@@ -70,6 +71,30 @@ export function Drawer({ title, onClose, children, footer, right }: { title: Rea
         {footer ? <footer>{footer}</footer> : null}
       </aside>
     </>
+  );
+}
+
+/** Small centred "are you sure?" dialog. */
+export function Confirm({ title, text, okLabel = "O'chirish", busy, onOk, onCancel }: { title: string; text: ReactNode; okLabel?: string; busy?: boolean; onOk: () => void; onCancel: () => void }) {
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && onCancel();
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [onCancel]);
+  return createPortal(
+    <>
+      <div className="overlay" style={{ zIndex: 60 }} onClick={onCancel} />
+      <div className="confirm card" role="alertdialog" aria-modal>
+        <div className="confirm-ic"><Icon name="alert" size={22} /></div>
+        <h2>{title}</h2>
+        <div className="muted" style={{ marginTop: 8, lineHeight: 1.55, fontSize: 14 }}>{text}</div>
+        <div className="row" style={{ marginTop: 20, gap: 10, justifyContent: 'flex-end' }}>
+          <button className="confirm-btn ghost" onClick={onCancel} disabled={busy}>Bekor qilish</button>
+          <button className="confirm-btn danger" onClick={onOk} disabled={busy} autoFocus>{busy ? 'O‘chirilmoqda…' : okLabel}</button>
+        </div>
+      </div>
+    </>,
+    document.body,
   );
 }
 

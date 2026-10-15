@@ -212,7 +212,7 @@ h3 { font-size: 14px; }
 @keyframes tshimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
 
 /* ---------- Page entrance: cards rise in one after another ---------- */
-.page > .stack > *, .page .grid > * { animation: enter .6s cubic-bezier(.2, .7, .2, 1) both; }
+.page > .stack > :not(.overlay):not(.drawer):not(.confirm), .page .grid > * { animation: enter .6s cubic-bezier(.2, .7, .2, 1) both; }
 .page .grid > *:nth-child(2) { animation-delay: .06s; } .page .grid > *:nth-child(3) { animation-delay: .12s; } .page .grid > *:nth-child(4) { animation-delay: .18s; }
 .page > .stack > *:nth-child(2) { animation-delay: .05s; } .page > .stack > *:nth-child(3) { animation-delay: .1s; } .page > .stack > *:nth-child(4) { animation-delay: .15s; } .page > .stack > *:nth-child(5) { animation-delay: .2s; }
 @keyframes enter { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
@@ -413,3 +413,14 @@ input[type='checkbox'] { accent-color: var(--brand); width: 18px; height: 18px; 
 @media (prefers-reduced-motion: reduce) {
   .shiny-btn { animation: none; --shiny-angle: 135deg; }
 }
+
+/* ---------- confirm dialog ---------- */
+.confirm { position: fixed; z-index: 61; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100vw - 32px)); padding: 24px; animation: fade .18s ease-out; }
+.confirm-ic { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; margin-bottom: 14px; color: #ff8b80; background: rgba(255, 107, 94, .12); box-shadow: inset 0 0 0 1px rgba(255, 107, 94, .35); }
+.confirm-btn { height: 42px; padding: 0 18px; border-radius: 999px; font-weight: 800; font-size: 14px; cursor: pointer; border: 1px solid var(--line-hi); background: transparent; color: var(--ink); transition: filter .15s, transform .15s; }
+.confirm-btn:hover:not(:disabled) { filter: brightness(1.15); }
+.confirm-btn:active:not(:disabled) { transform: scale(.97); }
+.confirm-btn:disabled { opacity: .6; cursor: default; }
+.confirm-btn.danger { border-color: transparent; color: #fff; background: linear-gradient(180deg, #e2554a, #a8281f); box-shadow: 0 10px 24px rgba(226, 85, 74, .3); }
+.del-btn { width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; color: #ff8b80; background: rgba(255, 107, 94, .08); border: 1px solid rgba(255, 107, 94, .3); transition: background .15s; }
+.del-btn:hover { background: rgba(255, 107, 94, .2); }
