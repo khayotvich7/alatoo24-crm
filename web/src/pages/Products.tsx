@@ -2,7 +2,7 @@ import { Eye, EyeOff, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { MetalButton } from '@/components/ui/metal-button';
 import { api, type Bundle, del, money, patch, post, short, type Product } from '../api';
-import { Confirm, Drawer, Empty, Field, Search, Stat, useLoad, useToast } from '../ui';
+import { Confirm, Drawer, Empty, Field, Search, Stat, useCan, useLoad, useMe, useToast } from '../ui';
 
 const PRESETS: Record<string, Bundle[]> = {
   units: [{ label: '1 dona', mult: 1 }, { label: '2 dona', mult: 2, off: '−5%' }, { label: '3 dona', mult: 3, off: '−10%' }],
@@ -19,6 +19,7 @@ export default function Products(_: { arg: string | null }) {
   const [rm, setRm] = useState<Product | null>(null);
   const [rmBusy, setRmBusy] = useState(false);
   const toast = useToast();
+  const canEdit = useCan()('products', 2);
   const cats = useMemo(() => [...new Set((data?.products ?? []).map(p => p.category).filter(Boolean))], [data]);
   const list = (data?.products ?? []).filter(p => (!cat || p.category === cat) && p.name.toLowerCase().includes(q.toLowerCase()));
 
@@ -48,7 +49,7 @@ export default function Products(_: { arg: string | null }) {
         </div>
         <div className="actions">
           <div style={{ minWidth: 'min(260px, 100%)' }}><Search value={q} onChange={setQ} placeholder="Tovar nomi" /></div>
-          <MetalButton tone="emerald" icon={<Plus size={17} />} onClick={() => { location.hash = 'create'; }}>Yangi tovar</MetalButton>
+          {canEdit ? <MetalButton tone="emerald" icon={<Plus size={17} />} onClick={() => { location.hash = 'create'; }}>Yangi tovar</MetalButton> : null}
         </div>
       </div>
 
@@ -85,11 +86,11 @@ export default function Products(_: { arg: string | null }) {
                   <b className="num gold" style={{ fontFamily: 'var(--display)' }}>{money(p.price)}</b>
                   {p.oldPrice ? <span className="muted small" style={{ textDecoration: 'line-through' }}>{money(p.oldPrice)}</span> : null}
                 </div>
-                <div className="row" style={{ marginTop: 14, gap: 8 }}>
+                {canEdit ? <div className="row" style={{ marginTop: 14, gap: 8 }}>
                   <MetalButton lite size="sm" block icon={<Pencil size={14} />} onClick={() => setEdit(p)}>Tahrirlash</MetalButton>
                   <MetalButton lite size="sm" tone="ghost" title={p.active ? 'Ilovadan yashirish' : "Ilovada ko'rsatish"} onClick={() => toggle(p)}>{p.active ? <EyeOff size={15} /> : <Eye size={15} />}</MetalButton>
                   <button className="del-btn" title="O'chirish" aria-label={`${p.name} — o'chirish`} onClick={() => setRm(p)}><Trash2 size={15} /></button>
-                </div>
+                </div> : null}
               </div>
             </div>
           ))}
@@ -125,6 +126,7 @@ export function CreateProduct(_: { arg: string | null }) {
 }
 
 function ProductForm({ product: p, cats, onClose, onSaved, onDelete, page }: { product: Product | null; cats: string[]; onClose: () => void; onSaved: () => void; onDelete?: () => void; page?: boolean }) {
+  const owner = useMe().role === 'owner';
   const toast = useToast();
   const [f, setF] = useState<Form>(() => ({
     name: p?.name ?? '', short: p?.short ?? '', category: p?.category ?? '', price: p ? String(p.price) : '', oldPrice: p?.oldPrice ? String(p.oldPrice) : '',
@@ -215,7 +217,7 @@ function ProductForm({ product: p, cats, onClose, onSaved, onDelete, page }: { p
         <div className="grid g2">
           <Field label="Narxi, so'm *"><input className="input num" inputMode="numeric" value={f.price} onChange={e => set({ price: e.target.value })} placeholder="85000" /></Field>
           <Field label="Eski narx (chegirma uchun)"><input className="input num" inputMode="numeric" value={f.oldPrice} onChange={e => set({ oldPrice: e.target.value })} placeholder="99000" /></Field>
-          <Field label="Tannarx (faqat CRM'da)"><input className="input num" inputMode="numeric" value={f.costPrice} onChange={e => set({ costPrice: e.target.value })} placeholder="50000" /></Field>
+          {owner ? <Field label="Tannarx (faqat sizga ko'rinadi)"><input className="input num" inputMode="numeric" value={f.costPrice} onChange={e => set({ costPrice: e.target.value })} placeholder="50000" /></Field> : null}
           <Field label="Belgi"><input className="input" value={f.tag} onChange={e => set({ tag: e.target.value })} placeholder="Avtomatik: −14% yoki Yangi" /></Field>
         </div>
         {margin !== null ? <div className="muted small">Ustama: {margin}% · Foyda: {money(int(f.price)! - int(f.costPrice)!)} / dona</div> : null}

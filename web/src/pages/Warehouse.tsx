@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { type Move, post, type Product, when } from '../api';
-import { Drawer, Empty, Field, Icon, Search, Thumb, useLoad, useToast } from '../ui';
+import { Drawer, Empty, Field, Icon, Search, Thumb, useCan, useLoad, useToast } from '../ui';
 import { MetalButton } from '@/components/ui/metal-button';
 
 const KIND: Record<string, { label: string; tone: string }> = {
@@ -17,6 +17,7 @@ export default function Warehouse(_: { arg: string | null }) {
   const [sel, setSel] = useState<number | ''>('');
   const moves = useLoad<{ moves: Move[] }>(`/api/admin/stock/moves${sel ? `?productId=${sel}` : ''}`);
   const [form, setForm] = useState<Product | null>(null);
+  const edit = useCan()('stock', 2);
   const list = (products.data?.products ?? []).filter(p => p.name.toLowerCase().includes(q.toLowerCase()));
   const totalUnits = list.reduce((a, p) => a + Math.max(0, p.stock), 0);
   const low = list.filter(p => p.stock <= p.lowStock).length;
@@ -50,7 +51,7 @@ export default function Warehouse(_: { arg: string | null }) {
                       <td><div className="row"><Thumb src={p.images[0]} name={p.short || p.name} tint={p.tint} /><div><div style={{ fontWeight: 700 }}>{p.name}</div><div className="muted small">{p.category}</div></div></div></td>
                       <td><span className={`badge ${p.stock <= 0 ? 't-red' : p.stock <= p.lowStock ? 't-amber' : 't-green'}`}>{p.stock} ta</span></td>
                       <td style={{ width: 180 }}><div className="bar"><i style={{ width: `${pct}%`, background: p.stock <= p.lowStock ? 'linear-gradient(90deg,#ff6b5e,#f2a24a)' : undefined }} /></div><div className="muted small" style={{ marginTop: 4 }}>chegara: {p.lowStock}</div></td>
-                      <td className="r"><MetalButton lite size="sm" icon={<Icon name="plus" size={15} />} onClick={e => { e.stopPropagation(); setForm(p); }}>Kirim / chiqim</MetalButton></td>
+                      <td className="r">{edit ? <MetalButton lite size="sm" icon={<Icon name="plus" size={15} />} onClick={e => { e.stopPropagation(); setForm(p); }}>Kirim / chiqim</MetalButton> : null}</td>
                     </tr>
                   );
                 })}
@@ -60,7 +61,7 @@ export default function Warehouse(_: { arg: string | null }) {
               {list.map(p => (
                 <div key={p.id} className="item row between">
                   <div className="row" onClick={() => setSel(p.id)}><Thumb src={p.images[0]} name={p.short || p.name} tint={p.tint} /><div><div style={{ fontWeight: 700 }}>{p.name}</div><span className={`badge ${p.stock <= 0 ? 't-red' : p.stock <= p.lowStock ? 't-amber' : 't-green'}`}>{p.stock} ta</span></div></div>
-                  <MetalButton lite size="sm" onClick={() => setForm(p)}><Icon name="plus" size={15} /></MetalButton>
+                  {edit ? <MetalButton lite size="sm" onClick={() => setForm(p)}><Icon name="plus" size={15} /></MetalButton> : null}
                 </div>
               ))}
             </div>
