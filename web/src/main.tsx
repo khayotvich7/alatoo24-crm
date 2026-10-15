@@ -9,6 +9,8 @@ import Orders from './pages/Orders';
 import Products, { CreateProduct } from './pages/Products';
 import Warehouse from './pages/Warehouse';
 import Velaris from '@/components/ui/velaris';
+import { useSpotlight } from '@/components/ui/spotlight-card';
+import { TextShimmer } from '@/components/ui/text-shimmer';
 import './styles.css';
 import { Icon, ToastProvider, useLoad } from './ui';
 
@@ -32,6 +34,7 @@ const readHash = () => {
 function App() {
   const [authed, setAuthed] = useState(!!getToken());
   const [route, setRoute] = useState(readHash);
+  useSpotlight();
   useEffect(() => {
     setUnauthorizedHandler(() => setAuthed(false));
     const h = () => { setRoute(readHash()); window.scrollTo({ top: 0 }); };
@@ -64,7 +67,7 @@ function Side({ current }: { current: PageId }) {
   const n = useNewCount();
   return (
     <aside className="side">
-      <div className="logo"><span className="metal-text">Alatoo24</span><small>CRM</small></div>
+      <div className="logo"><img src="/favicon.png" alt="" /><div><TextShimmer className="on-gold">Alatoo24</TextShimmer><small>CRM</small></div></div>
       <nav className="nav">
         {PAGES.map(p => [
           p.sec ? <div key={p.id + '-sec'} className="sec">{p.sec}</div> : null,
