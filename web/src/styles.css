@@ -472,3 +472,4 @@ input[type='checkbox'] { accent-color: var(--brand); width: 18px; height: 18px; 
 .codeblock.big { font-size: 15px; padding: 16px 18px; }
 .keybox.big { padding: 14px 14px 14px 18px; }
 .keybox.big code { font-size: 18px; font-weight: 700; letter-spacing: .02em; color: #fff3cf; }
+.api-hero.arden { border-color: rgba(227, 201, 143, .3); background-image: radial-gradient(500px 220px at 90% 0%, rgba(227, 201, 143, .1), transparent 70%); }
