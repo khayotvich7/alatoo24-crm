@@ -42,7 +42,7 @@ export default function Orders({ arg }: { arg: string | null }) {
           <Empty title="Buyurtma topilmadi" text={debounced || status !== 'all' ? "Filtrni o'zgartirib ko'ring." : "Ilovadan birinchi buyurtma tushishi bilan shu yerda ko'rinadi."} />
         ) : (
           <>
-            <table className="table collapse">
+            <table className="table m-collapse">
               <thead><tr><th>№</th><th>Mijoz</th><th>Manzil</th><th>Holat</th><th className="r">Summa</th><th>Vaqt</th></tr></thead>
               <tbody>
                 {data.orders.map(o => (

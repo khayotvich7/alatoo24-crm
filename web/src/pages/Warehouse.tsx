@@ -40,7 +40,7 @@ export default function Warehouse(_: { arg: string | null }) {
       <div className="card flat">
         {!products.data ? <div className="empty">Yuklanmoqda…</div> : (
           <>
-            <table className="table collapse">
+            <table className="table m-collapse">
               <thead><tr><th>Tovar</th><th>Qoldiq</th><th>Daraja</th><th></th></tr></thead>
               <tbody>
                 {list.map(p => {

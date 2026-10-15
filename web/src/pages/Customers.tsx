@@ -25,7 +25,7 @@ export default function Customers({ arg }: { arg: string | null }) {
       <div className="card flat">
         {error ? <Empty title="Yuklab bo'lmadi" text={error} /> : !data ? <div className="empty">Yuklanmoqda…</div> : !list.length ? <Empty title="Mijoz topilmadi" text="Ilovadan buyurtma bergan har bir mijoz shu yerga avtomatik qo'shiladi." /> : (
           <>
-            <table className="table collapse">
+            <table className="table m-collapse">
               <thead><tr><th>Mijoz</th><th>Telefonlar</th><th className="r">Buyurtmalar</th><th className="r">Xarid (yetkazilgan)</th><th>Oxirgi buyurtma</th></tr></thead>
               <tbody>
                 {list.map(c => (
