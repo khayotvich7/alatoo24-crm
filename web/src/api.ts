@@ -30,7 +30,7 @@ export const del = <T>(path: string) => api<T>(path, { method: 'DELETE' });
 
 // ---- types shared by pages ----
 
-export type Status = 'new' | 'confirmed' | 'courier' | 'delivered' | 'cancelled';
+export type Status = 'new' | 'checking' | 'confirmed' | 'ready' | 'courier' | 'delivered' | 'cancelled';
 
 export type OrderRow = {
   id: number; no: number; status: Status; name: string; phone: string; phone2: string;
@@ -62,6 +62,8 @@ export type Dashboard = {
   byStatus: Partial<Record<Status, number>>; pendingCash: number; customers: number;
   statusSums: Partial<Record<Status, { n: number; s: number }>>; ordered: { n: number; s: number }; orderedToday: { n: number; s: number };
   newOrders: { id: number; no: number; name: string; phone: string; total: number; createdAt: string }[];
+  /** false for staff: money fields are zeroed */
+  money: boolean;
   lowStock: { id: number; name: string; stock: number; lowStock: number }[];
 };
 
@@ -94,9 +96,31 @@ export const when = (s: string | null) => {
 
 export const STATUS: Record<Status, { label: string; tone: string }> = {
   new: { label: 'Yangi', tone: 'blue' },
+  checking: { label: 'Tekshiruvda', tone: 'gold' },
   confirmed: { label: 'Tasdiqlandi', tone: 'violet' },
+  ready: { label: 'Dastavkaga', tone: 'teal' },
   courier: { label: "Yo'lda", tone: 'amber' },
   delivered: { label: 'Yetkazildi', tone: 'green' },
   cancelled: { label: 'Bekor', tone: 'red' },
 };
-export const FLOW: Status[] = ['new', 'confirmed', 'courier', 'delivered'];
+export const FLOW: Status[] = ['new', 'checking', 'confirmed', 'ready', 'courier', 'delivered'];
+
+// ---- users & access ----
+
+export type Area = 'orders' | 'products' | 'stock' | 'customers';
+/** 0 = hidden, 1 = view only, 2 = full */
+export type Perms = Record<Area, number>;
+export type Me = { id: number; role: 'owner' | 'staff'; name: string; login: string; perms: Perms };
+export type Staff = { id: number; name: string; phone: string; login: string; active: boolean; perms: Perms; createdAt: string };
+
+export const AREA_LABEL: Record<Area, string> = { orders: 'Buyurtmalar', products: 'Tovarlar', stock: 'Sklad', customers: 'Mijozlar' };
+
+export type Expense = { id: number; day: string; category: string; amount: number; note: string };
+export type Finance = {
+  days: number;
+  kassa: Record<'onTheWay' | 'expected' | 'today' | 'week' | 'month', { s: number; n: number }>;
+  revenue: number; orders: number; cogs: number; costCoverage: number; gross: number; expenses: number; net: number;
+  expensesByCategory: { category: string; amount: number }[];
+  series: { day: string; revenue: number; expenses: number }[];
+  list: Expense[];
+};

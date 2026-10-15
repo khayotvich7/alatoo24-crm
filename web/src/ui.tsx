@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { api, STATUS, type Status } from './api';
+import { api, type Area, type Me, STATUS, type Status } from './api';
 
 // ---------- icons (inline so the panel has no icon-font dependency) ----------
 
@@ -26,6 +26,10 @@ const P: Record<string, string> = {
   ban: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M4.9 4.9l14.2 14.2',
   check: 'M22 11.1V12a10 10 0 1 1-5.9-9.1M22 4 12 14l-3-3',
   clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20M12 6v6l4 2',
+  wallet: 'M3 7a2 2 0 0 1 2-2h13v4M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2zM16 14.5h.01',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
+  shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
+  trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6',
 };
 
 export const Icon = ({ name, size = 20, stroke = 2 }: { name: keyof typeof P | string; size?: number; stroke?: number }) => (
@@ -139,3 +143,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
   return <ToastCtx.Provider value={show}>{children}{msg ? <div className="toast" role="status">{msg}</div> : null}</ToastCtx.Provider>;
 }
+
+// ---------- signed-in user ----------
+
+export const MeCtx = createContext<Me | null>(null);
+export const useMe = () => useContext(MeCtx)!;
+/** Access level of the signed-in user in an area: 0 hidden, 1 view, 2 full. The owner has everything. */
+export const useCan = () => {
+  const me = useMe();
+  return (area: Area, level: 1 | 2 = 1) => me.role === 'owner' || (me.perms[area] ?? 0) >= level;
+};
