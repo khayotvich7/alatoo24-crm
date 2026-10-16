@@ -146,6 +146,21 @@ export const all = <T = Row>(sql: string, ...params: unknown[]) => db.prepare(sq
 export const one = <T = Row>(sql: string, ...params: unknown[]) => db.prepare(sql).get(...(params as never[])) as T | undefined;
 export const run = (sql: string, ...params: unknown[]) => db.prepare(sql).run(...(params as never[]));
 
+// Columns added after the first release; existing databases get them on start.
+function addColumn(table: string, col: string, def: string) {
+  if (!all<{ name: string }>(`PRAGMA table_info(${table})`).some(c => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+}
+addColumn('customers', 'age', 'INTEGER');
+addColumn('customers', 'gender', "TEXT NOT NULL DEFAULT ''");
+addColumn('customers', 'weight', 'INTEGER');
+addColumn('customers', 'conditions', "TEXT NOT NULL DEFAULT '[]'");
+addColumn('customers', 'health_note', "TEXT NOT NULL DEFAULT ''");
+addColumn('customers', 'consent_at', 'TEXT');
+// Snapshot of the customer's answers at order time, and the specialist's decision:
+// '' (not needed) | 'needed' | 'approved' | 'rejected'.
+addColumn('orders', 'health', "TEXT NOT NULL DEFAULT ''");
+addColumn('orders', 'consult', "TEXT NOT NULL DEFAULT ''");
+
 /** Runs fn inside a transaction; rolls back if it throws. */
 export function tx<T>(fn: () => T): T {
   db.exec('BEGIN');

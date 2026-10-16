@@ -1,5 +1,6 @@
 // Business rules shared by the public API (mobile app) and the CRM.
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { all, one, type Row, run, tx } from './db.ts';
 
 export const PROMO = { code: 'ALATOO15', percent: 15 };
@@ -7,6 +8,20 @@ export const PROMO = { code: 'ALATOO15', percent: 15 };
 // 'courier' is no longer used by the CRM; old orders in it are moved to 'ready' at startup (db.ts).
 export const STATUSES = ['new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'] as const;
 export type Status = (typeof STATUSES)[number];
+
+// Conditions under which the product needs a specialist's go-ahead (owner's list, conditions.json).
+export const CONDITIONS = JSON.parse(readFileSync(new URL('./conditions.json', import.meta.url), 'utf8')) as {
+  notAllowed: { code: string; label: string }[]; minAge: number;
+};
+const CONDITION_LABEL = new Map(CONDITIONS.notAllowed.map(c => [c.code, c.label]));
+
+export type HealthProfile = { age?: number | null; gender?: string; weight?: number | null; conditions?: string[]; other?: string; consent?: boolean };
+
+/** True when the answers mean a specialist must talk to the customer first. */
+export function needsConsult(h: HealthProfile | undefined) {
+  if (!h) return false;
+  return (h.conditions ?? []).some(c => CONDITION_LABEL.has(c)) || (h.age != null && h.age < CONDITIONS.minAge) || !!h.other?.trim();
+}
 
 export class HttpError extends Error {
   status: number;
@@ -82,6 +97,7 @@ export type OrderInput = {
   name: string; phone: string; phone2: string; comment?: string; promo?: string | null;
   address: { region: string; street: string; flat?: string; landmark?: string };
   items: { id: number; qty: number }[];
+  profile?: HealthProfile;
 };
 
 function nextOrderNo() {
@@ -112,6 +128,16 @@ export function createOrder(b: OrderInput) {
     if (!customer) customer = { id: Number(run('INSERT INTO customers (phone, name, phone2) VALUES (?,?,?)', phone, b.name.trim(), phone2).lastInsertRowid) };
     else run('UPDATE customers SET name = ?, phone2 = ? WHERE id = ?', b.name.trim(), phone2, customer.id);
 
+    const h = b.profile;
+    const conds = (h?.conditions ?? []).filter(c => CONDITION_LABEL.has(c));
+    const age = h?.age != null && Number.isFinite(Number(h.age)) ? Math.max(0, Math.min(120, Math.round(Number(h.age)))) : null;
+    const weight = h?.weight != null && Number.isFinite(Number(h.weight)) ? Math.max(0, Math.min(400, Math.round(Number(h.weight)))) : null;
+    const other = String(h?.other ?? '').trim().slice(0, 300);
+    if (h) run(`UPDATE customers SET age = ?, gender = ?, weight = ?, conditions = ?, health_note = ?, consent_at = COALESCE(consent_at, CASE WHEN ? THEN datetime('now') END) WHERE id = ?`,
+      age, String(h.gender ?? '').slice(0, 10), weight, JSON.stringify(conds), other, h.consent ? 1 : 0, customer.id);
+    const consult = needsConsult({ conditions: conds, age, other }) ? 'needed' : '';
+    const health = h ? JSON.stringify({ age, gender: h.gender ?? '', weight, conditions: conds.map(c => CONDITION_LABEL.get(c)), other }) : '';
+
     // Promo is for a customer's first (not cancelled) order only.
     const promoOk = (b.promo ?? '').trim().toUpperCase() === PROMO.code
       && !one("SELECT id FROM orders WHERE customer_id = ? AND status != 'cancelled'", customer.id);
@@ -121,13 +147,13 @@ export function createOrder(b: OrderInput) {
     const token = randomBytes(16).toString('hex');
     const a = b.address;
     const id = Number(run(
-      `INSERT INTO orders (no, token, customer_id, name, phone, phone2, region, street, flat, landmark, comment, subtotal, discount, total, promo)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO orders (no, token, customer_id, name, phone, phone2, region, street, flat, landmark, comment, subtotal, discount, total, promo, health, consult)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       no, token, customer.id, b.name.trim(), phone, phone2, String(a.region ?? ''), a.street.trim(), String(a.flat ?? ''), String(a.landmark ?? ''),
-      String(b.comment ?? '').slice(0, 300), subtotal, discount, subtotal - discount, promoOk ? PROMO.code : null,
+      String(b.comment ?? '').slice(0, 300), subtotal, discount, subtotal - discount, promoOk ? PROMO.code : null, health, consult,
     ).lastInsertRowid);
     for (const i of items) run('INSERT INTO order_items (order_id, product_id, name, price, qty) VALUES (?,?,?,?,?)', id, i.id, i.name, i.price, i.qty);
-    run("INSERT INTO order_events (order_id, status, note) VALUES (?, 'new', 'Ilovadan')", id);
+    run("INSERT INTO order_events (order_id, status, note) VALUES (?, 'new', ?)", id, consult ? 'Ilovadan · mutaxassis maslahati kerak' : 'Ilovadan');
     return getOrder(id)!;
   });
 }
@@ -140,6 +166,7 @@ export function getOrder(id: number) {
     address: { region: o.region, street: o.street, flat: o.flat, landmark: o.landmark }, comment: o.comment,
     subtotal: o.subtotal, discount: o.discount, total: o.total, promo: o.promo, adminNote: o.admin_note,
     customerId: o.customer_id, createdAt: o.created_at, updatedAt: o.updated_at, deliveredAt: o.delivered_at,
+    consult: String(o.consult ?? ''), health: o.health ? JSON.parse(String(o.health)) : null,
     items: all('SELECT product_id id, name, price, qty FROM order_items WHERE order_id = ?', id),
     events: all('SELECT status, note, created_at createdAt FROM order_events WHERE order_id = ? ORDER BY id', id),
   };
@@ -150,7 +177,7 @@ export function getOrder(id: number) {
 const APP_STATUS: Record<string, string> = { checking: 'new', ready: 'courier' };
 const appStatus = (s: unknown) => APP_STATUS[String(s)] ?? s;
 export const publicOrder = (o: NonNullable<ReturnType<typeof getOrder>>) => {
-  const { adminNote: _a, customerId: _c, token: _t, ...rest } = o;
+  const { adminNote: _a, customerId: _c, token: _t, health: _h, ...rest } = o;
   return {
     ...rest,
     status: appStatus(rest.status),
@@ -164,6 +191,9 @@ export function setStatus(id: number, status: Status, note = '') {
     const o = one<{ status: Status }>('SELECT status FROM orders WHERE id = ?', id);
     if (!o) throw new HttpError(404, 'Buyurtma topilmadi');
     if (o.status === status) return getOrder(id)!;
+    const c = one<{ consult: string }>('SELECT consult FROM orders WHERE id = ?', id)!.consult;
+    if ((status === 'ready' || status === 'courier' || status === 'delivered') && c === 'needed') throw new HttpError(409, 'Avval mutaxassis maslahati kerak: buyurtmani mutaxassis tasdiqlasin');
+    if ((status === 'ready' || status === 'courier' || status === 'delivered') && c === 'rejected') throw new HttpError(409, "Mutaxassis rad etgan buyurtmani jo'natib bo'lmaydi");
     const items = all<{ product_id: number; qty: number }>('SELECT product_id, qty FROM order_items WHERE order_id = ?', id);
     // Stock leaves the warehouse when the courier hands the goods over (delivered),
     // and comes back if a delivered order is reopened or cancelled.
@@ -171,6 +201,18 @@ export function setStatus(id: number, status: Status, note = '') {
     if (o.status === 'delivered') for (const i of items) moveStock(i.product_id, 'return', i.qty, 'Yetkazish bekor qilindi', id);
     run(`UPDATE orders SET status = ?, updated_at = datetime('now'), delivered_at = ${status === 'delivered' ? "datetime('now')" : 'NULL'} WHERE id = ?`, status, id);
     run('INSERT INTO order_events (order_id, status, note) VALUES (?,?,?)', id, status, note);
+    return getOrder(id)!;
+  });
+}
+
+export function setConsult(id: number, decision: 'approved' | 'rejected', note = '') {
+  return tx(() => {
+    const o = one<{ status: string; consult: string }>('SELECT status, consult FROM orders WHERE id = ?', id);
+    if (!o) throw new HttpError(404, 'Buyurtma topilmadi');
+    if (!o.consult) throw new HttpError(400, 'Bu buyurtmaga maslahat kerak emas');
+    run("UPDATE orders SET consult = ?, updated_at = datetime('now') WHERE id = ?", decision, id);
+    run('INSERT INTO order_events (order_id, status, note) VALUES (?,?,?)', id, o.status,
+      (decision === 'approved' ? 'Mutaxassis tasdiqladi' : 'Mutaxassis rad etdi') + (note ? ` · ${note}` : ''));
     return getOrder(id)!;
   });
 }

@@ -34,8 +34,11 @@ export type Status = 'new' | 'checking' | 'confirmed' | 'ready' | 'delivered' | 
 
 export type OrderRow = {
   id: number; no: number; status: Status; name: string; phone: string; phone2: string;
-  region: string; street: string; total: number; items: number; createdAt: string;
+  region: string; street: string; total: number; items: number; createdAt: string; consult: Consult;
 };
+
+/** Specialist check for customers with a listed health condition. */
+export type Consult = '' | 'needed' | 'approved' | 'rejected';
 
 export type Order = {
   id: number; no: number; status: Status; name: string; phone: string; phone2: string;
@@ -44,6 +47,8 @@ export type Order = {
   customerId: number; createdAt: string; updatedAt: string; deliveredAt: string | null;
   items: { id: number; name: string; price: number; qty: number }[];
   events: { status: Status; note: string; createdAt: string }[];
+  consult: Consult;
+  health: { age: number | null; gender: string; weight: number | null; conditions: string[]; other: string } | null;
 };
 
 export type Bundle = { label: string; mult: number; off?: string };
@@ -59,7 +64,7 @@ export type Customer = { id: number; name: string; phone: string; phone2: string
 
 export type Dashboard = {
   today: { n: number; s: number }; week: { n: number; s: number }; month: { n: number; s: number }; all: { n: number; s: number };
-  byStatus: Partial<Record<Status, number>>; pendingCash: number; customers: number;
+  byStatus: Partial<Record<Status, number>>; pendingCash: number; customers: number; consultNeeded: number;
   statusSums: Partial<Record<Status, { n: number; s: number }>>; ordered: { n: number; s: number }; orderedToday: { n: number; s: number };
   newOrders: { id: number; no: number; name: string; phone: string; total: number; createdAt: string }[];
   /** false for staff: money fields are zeroed */

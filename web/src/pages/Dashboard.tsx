@@ -58,13 +58,15 @@ export default function Dashboard(_: { arg: string | null }) {
             <Stat k="Bugungi savdo" v={<T v={d.today.s} f={short} />} s={`${d.today.n} ta yetkazildi`} icon="clock" tone="green" />
             <Stat k="7 kun" v={<T v={d.week.s} f={short} />} s={`${d.week.n} ta yetkazildi`} icon="chart" tone="blue" />
             <Stat k="Shu oy" v={<T v={d.month.s} f={short} />} s={`${d.month.n} ta yetkazildi`} icon="chart" tone="violet" />
-            <Stat k="Yangi buyurtmalar" v={<T v={ss('new').n} f={n => String(n)} />} s="tasdiqlash kutilmoqda" icon="orders" tone="gold" onClick={go('orders')} />
+            {d.consultNeeded ? <Stat k="🩺 Mutaxassis maslahati" v={<T v={d.consultNeeded} f={n => String(n)} />} s="mutaxassis tasdig'ini kutmoqda" icon="alert" tone="gold" onClick={go('orders')} />
+              : <Stat k="Yangi buyurtmalar" v={<T v={ss('new').n} f={n => String(n)} />} s="tasdiqlash kutilmoqda" icon="orders" tone="gold" onClick={go('orders')} />}
           </div>
         </>
       ) : (
         <div className="grid g4">
           <Stat k="Yangi" v={<T v={ss('new').n} f={n => `${n} ta`} />} s="tekshirish kutilmoqda" icon="orders" tone="gold" onClick={can('orders') ? go('orders') : undefined} />
-          <Stat k="Tekshiruvda" v={<T v={ss('checking').n} f={n => `${n} ta`} />} s="tekshiruvchida" icon="shield" tone="gold" onClick={can('orders') ? go('orders') : undefined} />
+          {d.consultNeeded ? <Stat k="🩺 Maslahat kerak" v={<T v={d.consultNeeded} f={n => `${n} ta`} />} s="mutaxassis tasdig'ini kutmoqda" icon="alert" tone="gold" onClick={can('orders') ? go('orders') : undefined} />
+            : <Stat k="Tekshiruvda" v={<T v={ss('checking').n} f={n => `${n} ta`} />} s="tekshiruvchida" icon="shield" tone="gold" onClick={can('orders') ? go('orders') : undefined} />}
           <Stat k="Dastavkada" v={<T v={onWay.n} f={n => `${n} ta`} />} s="yetkazilmoqda" icon="truck" tone="amber" onClick={can('orders') ? go('orders') : undefined} />
           <Stat k="Bugun yetkazildi" v={<T v={d.today.n} f={n => `${n} ta`} />} s={`shu oy: ${d.month.n} ta`} icon="check" tone="green" />
         </div>

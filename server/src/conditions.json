@@ -1,0 +1,16 @@
+{
+  "_source": "Owner's written list, sent 2026-10-16. Shown to customers during registration; any match needs a specialist before the order ships.",
+  "notAllowed": [
+    { "code": "yazva", "label": "Oshqozon yoki ichak yarasi (yazva)" },
+    { "code": "kolit", "label": "Ichak koliti (ichki kolit)" },
+    { "code": "operatsiya_6_12", "label": "Oxirgi 6–12 oy ichida og'ir yoki yengil operatsiya" },
+    { "code": "jigar_serroz", "label": "Jigar serrozi" },
+    { "code": "onkologiya", "label": "Onkologik kasalliklar" },
+    { "code": "ot_tosh", "label": "O't pufagida tosh" },
+    { "code": "qon_ketish", "label": "Qizilo'ngach yoki ichki organlardan qon ketishi" },
+    { "code": "ich_surish_mumkin_emas", "label": "Ich surilishi mumkin bo'lmagan holat" },
+    { "code": "homiladorlik", "label": "Homiladorlik" },
+    { "code": "emizish", "label": "Emizish davri" }
+  ],
+  "minAge": 5
+}

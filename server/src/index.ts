@@ -11,7 +11,7 @@ import { all, one, type Row, run, tx, UPLOAD_DIR } from './db.ts';
 import { notifyNewOrder } from './notify.ts';
 import {
   createOrder, createProduct, fmtPhone, getOrder, HttpError, moveStock, type OrderInput, productOut, type ProductInput, publicOrder,
-  setStatus, type Status, STATUSES, updateProduct,
+  setConsult, setStatus, type Status, STATUSES, updateProduct, CONDITIONS,
 } from './shop.ts';
 import { analytics, dashboard, finance } from './stats.ts';
 import { partnerAdmin, partnerFeed } from './partner.ts';
@@ -49,6 +49,8 @@ app.get('/api/health', async () => ({ ok: true }));
 
 // Read-only feed for Arden, guarded by its own key (x-api-key: a24_...).
 partnerFeed(app);
+
+app.get('/api/conditions', async () => ({ notAllowed: CONDITIONS.notAllowed, minAge: CONDITIONS.minAge }));
 
 app.get('/api/catalog', async () => {
   const products = all('SELECT * FROM products WHERE active = 1 ORDER BY sort, id').map(p => productOut(p));
@@ -253,7 +255,8 @@ app.register(async admin => {
     need(req, 1, 'orders');
     const { status, q, page } = req.query as { status?: string; q?: string; page?: string };
     const where: string[] = [], params: unknown[] = [];
-    if (status && STATUSES.includes(status as Status)) { where.push('status = ?'); params.push(status); }
+    if (status === 'consult') where.push("consult = 'needed'");
+    else if (status && STATUSES.includes(status as Status)) { where.push('status = ?'); params.push(status); }
     if (q?.trim()) {
       const t = q.trim(), d = t.replace(/\D/g, '');
       where.push(`(name LIKE ? OR street LIKE ?${d ? ' OR phone LIKE ? OR phone2 LIKE ? OR CAST(no AS TEXT) LIKE ?' : ''})`);
@@ -263,7 +266,7 @@ app.register(async admin => {
     const size = 30, p = Math.max(1, Number(page) || 1);
     const total = one<{ n: number }>(`SELECT COUNT(*) n FROM orders ${w}`, ...params)!.n;
     const rows = all<Row>(
-      `SELECT o.id, o.no, o.status, o.name, o.phone, o.phone2, o.region, o.street, o.total, o.created_at createdAt,
+      `SELECT o.id, o.no, o.status, o.consult, o.name, o.phone, o.phone2, o.region, o.street, o.total, o.created_at createdAt,
               (SELECT SUM(qty) FROM order_items WHERE order_id = o.id) items
        FROM orders o ${w} ORDER BY o.id DESC LIMIT ${size} OFFSET ${(p - 1) * size}`, ...params,
     ).map(r => ({ ...r, phone: fmtPhone(String(r.phone)), phone2: fmtPhone(String(r.phone2)) }));
@@ -278,10 +281,12 @@ app.register(async admin => {
   admin.patch('/orders/:id', async req => {
     need(req, 2, 'orders');
     const id = Number((req.params as { id: string }).id);
-    const b = req.body as { status?: Status; note?: string; adminNote?: string };
+    const b = req.body as { status?: Status; note?: string; adminNote?: string; consult?: 'approved' | 'rejected' };
     const who = userOf(req).role !== 'owner' ? userOf(req).name : '';
+    const note = String(b.note ?? '').slice(0, 300);
+    if (b.consult === 'approved' || b.consult === 'rejected') setConsult(id, b.consult, [who, note].filter(Boolean).join(' · '));
     if (b.adminNote !== undefined) run("UPDATE orders SET admin_note = ?, updated_at = datetime('now') WHERE id = ?", String(b.adminNote).slice(0, 1000), id);
-    if (b.status) setStatus(id, b.status, [who, String(b.note ?? '').slice(0, 300)].filter(Boolean).join(' · '));
+    if (b.status) setStatus(id, b.status, b.consult ? who : [who, note].filter(Boolean).join(' · '));
     const o = getOrder(id);
     if (!o) throw new HttpError(404, 'Buyurtma topilmadi');
     return { order: o };

@@ -3,10 +3,13 @@ import { type Dashboard, del, FLOW, money, type Order, type OrderRow, patch, STA
 import { Badge, Confirm, Drawer, Empty, Icon, LiveDot, Search, useCan, useLive, useLoad, useMe, useToast } from '../ui';
 import { MetalButton } from '@/components/ui/metal-button';
 
-const FILTERS: (Status | 'all')[] = ['all', 'new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'];
+const FILTERS: (Status | 'all' | 'consult')[] = ['all', 'consult', 'new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'];
+
+const ConsultBadge = ({ c }: { c: string }) => c === 'needed' ? <span className="badge t-gold" title="Mutaxassis maslahati kerak">🩺 Maslahat kerak</span>
+  : c === 'approved' ? <span className="badge t-green">🩺 Ruxsat</span> : c === 'rejected' ? <span className="badge t-red">🩺 Rad</span> : null;
 
 export default function Orders({ arg }: { arg: string | null }) {
-  const [status, setStatus] = useState<Status | 'all'>('all');
+  const [status, setStatus] = useState<Status | 'all' | 'consult'>('all');
   const [q, setQ] = useState('');
   const [debounced, setDebounced] = useState('');
   const [page, setPage] = useState(1);
@@ -33,7 +36,7 @@ export default function Orders({ arg }: { arg: string | null }) {
       <div className="chips">
         {FILTERS.map(f => (
           <button key={f} className={`chip${f === status ? ' on' : ''}`} onClick={() => { setStatus(f); setPage(1); }}>
-            {f === 'all' ? 'Hammasi' : STATUS[f].label}<b>{f === 'all' ? total : counts.data?.byStatus[f] ?? 0}</b>
+            {f === 'all' ? 'Hammasi' : f === 'consult' ? '🩺 Maslahat kerak' : STATUS[f].label}<b>{f === 'all' ? total : f === 'consult' ? counts.data?.consultNeeded ?? 0 : counts.data?.byStatus[f] ?? 0}</b>
           </button>
         ))}
       </div>
@@ -51,7 +54,7 @@ export default function Orders({ arg }: { arg: string | null }) {
                     <td style={{ fontWeight: 800 }}>{o.no}</td>
                     <td><div style={{ fontWeight: 700 }}>{o.name}</div><div className="muted small">+998 {o.phone}</div></td>
                     <td><div style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.street}</div><div className="muted small">{o.region}</div></td>
-                    <td><Badge status={o.status} /></td>
+                    <td><div className="row" style={{ gap: 6, flexWrap: 'wrap' }}><Badge status={o.status} /><ConsultBadge c={o.consult} /></div></td>
                     <td className="r num" style={{ fontWeight: 800 }}>{money(o.total)}<div className="muted small">{o.items} ta</div></td>
                     <td className="muted small">{when(o.createdAt)}</td>
                   </tr>
@@ -125,10 +128,14 @@ function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => vo
   return (
     <Drawer
       title={`№ ${o.no}`}
-      right={<Badge status={o.status} />}
+      right={<div className="row" style={{ gap: 6 }}><ConsultBadge c={o.consult} /><Badge status={o.status} /></div>}
       onClose={onClose}
       footer={!edit ? <div className="readonly-note"><Icon name="shield" size={15} /> Sizda faqat ko'rib chiqish ruxsati bor</div> : <>
-        {next ? <MetalButton tone={next.to === 'delivered' ? 'emerald' : 'onyx'} disabled={busy} onClick={() => save({ status: next.to }, STATUS[next.to].label)}>{next.label}</MetalButton> : null}
+        {o.consult === 'needed' && o.status !== 'cancelled' ? <>
+          <MetalButton tone="emerald" disabled={busy} onClick={() => { const n = prompt('Mutaxassis izohi (ixtiyoriy)') ?? ''; save({ consult: 'approved', note: n }, 'Mutaxassis tasdiqladi'); }}>🩺 Mutaxassis tasdiqladi</MetalButton>
+          <MetalButton tone="ruby" disabled={busy} onClick={() => { if (!confirm('Mutaxassis rad etdimi? Buyurtma bekor qilinadi.')) return; save({ consult: 'rejected', status: 'cancelled', note: 'Mutaxassis rad etdi' }, 'Rad etildi'); }}>Rad etish</MetalButton>
+        </> : null}
+        {next && !(o.consult === 'needed' && (next.to === 'ready' || next.to === 'delivered')) && o.consult !== 'rejected' ? <MetalButton tone={next.to === 'delivered' ? 'emerald' : 'onyx'} disabled={busy} onClick={() => save({ status: next.to }, STATUS[next.to].label)}>{next.label}</MetalButton> : null}
         {o.status !== 'cancelled' && o.status !== 'delivered' ? (
           <MetalButton tone="ruby" disabled={busy} onClick={() => confirm(`№ ${o.no} bekor qilinsinmi?`) && save({ status: 'cancelled' }, 'Bekor qilindi')}>Bekor qilish</MetalButton>
         ) : null}
@@ -154,6 +161,16 @@ function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => vo
       </div>
 
       <div className="card">
+        {o.health && (o.consult || o.health.conditions.length || o.health.other) ? (
+          <div style={{ marginBottom: 14, padding: 14, borderRadius: 14, border: '1px solid rgba(227,201,143,.35)', background: 'var(--gold-soft)' }}>
+            <div className="row between" style={{ marginBottom: 8 }}><b className="gold">🩺 Sog'liq holati</b><ConsultBadge c={o.consult} /></div>
+            {o.health.conditions.length ? <div style={{ fontSize: 14 }}>{o.health.conditions.join(' · ')}</div> : null}
+            {o.health.other ? <div style={{ fontSize: 14, marginTop: 4 }}><span className="muted">Mijoz yozgan:</span> {o.health.other}</div> : null}
+            {o.health.age != null && o.health.age < 5 ? <div style={{ fontSize: 14, marginTop: 4 }}>Yoshi: {o.health.age} (5 yoshdan kichik)</div> : null}
+            {o.consult === 'needed' ? <div className="small" style={{ marginTop: 8, color: 'var(--ink2)' }}>Mutaxassis mijoz bilan gaplashib, tasdiqlamaguncha buyurtma kuryerga berilmaydi.</div> : null}
+          </div>
+        ) : null}
+        {o.health ? <div className="muted small" style={{ marginBottom: 10 }}>{[o.health.age != null ? `${o.health.age} yosh` : '', o.health.gender === 'female' ? 'ayol' : o.health.gender === 'male' ? 'erkak' : '', o.health.weight ? `${o.health.weight} kg` : ''].filter(Boolean).join(' · ')}</div> : null}
         <h3 style={{ marginBottom: 10 }}>Mijoz</h3>
         <dl className="kv">
           <dt>Ism</dt><dd><a href={`#customers/${o.customerId}`}>{o.name}</a></dd>

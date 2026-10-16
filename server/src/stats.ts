@@ -26,6 +26,7 @@ export function dashboard() {
     newOrders: all(`SELECT id, no, name, phone, total, created_at createdAt FROM orders WHERE status = 'new' ORDER BY id DESC LIMIT 8`),
     lowStock: all('SELECT id, name, stock, low_stock lowStock FROM products WHERE active = 1 AND stock <= low_stock ORDER BY stock LIMIT 10'),
     customers: one<{ n: number }>('SELECT COUNT(*) n FROM customers')!.n,
+    consultNeeded: one<{ n: number }>("SELECT COUNT(*) n FROM orders WHERE consult = 'needed' AND status != 'cancelled'")!.n,
   };
 }
 
