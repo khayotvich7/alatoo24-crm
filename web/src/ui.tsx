@@ -30,6 +30,8 @@ const P: Record<string, string> = {
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z',
   trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6',
+  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+  moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
 };
 
 export const Icon = ({ name, size = 20, stroke = 2 }: { name: keyof typeof P | string; size?: number; stroke?: number }) => (
@@ -142,6 +144,43 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     t.current = setTimeout(() => setMsg(null), 2200);
   }, []);
   return <ToastCtx.Provider value={show}>{children}{msg ? <div className="toast" role="status">{msg}</div> : null}</ToastCtx.Provider>;
+}
+
+// ---------- day / night theme ----------
+
+export type Theme = 'light' | 'dark';
+const THEME_KEY = 'alatoo.crm.theme';
+/** Saved choice, else the device setting. */
+export const initialTheme = (): Theme => {
+  try { const t = localStorage.getItem(THEME_KEY); if (t === 'light' || t === 'dark') return t; } catch { /* private mode */ }
+  return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+};
+export const saveTheme = (t: Theme) => { try { localStorage.setItem(THEME_KEY, t); } catch { /* ignore */ } };
+export const ThemeCtx = createContext<{ theme: Theme; toggle: () => void }>({ theme: 'dark', toggle: () => {} });
+export const useTheme = () => useContext(ThemeCtx);
+/** Chart colours that read well on the current background. */
+export const useChartColors = () => {
+  const dark = useTheme().theme === 'dark';
+  const ink = dark ? '#eef4f0' : '#14281d';
+  return {
+    grid: dark ? 'rgba(255,255,255,.06)' : 'rgba(20,40,30,.08)',
+    axis: { fontSize: 11, fill: dark ? '#8aa094' : '#6b7d72' },
+    cursor: { fill: dark ? 'rgba(255,255,255,.04)' : 'rgba(20,40,30,.05)' },
+    tip: {
+      contentStyle: { borderRadius: 14, border: `1px solid ${dark ? 'rgba(255,255,255,.12)' : 'rgba(20,40,30,.12)'}`, background: dark ? '#0b1410' : '#ffffff', color: ink, fontFamily: 'Manrope' },
+      itemStyle: { color: ink }, labelStyle: { color: dark ? '#a8b8ae' : '#4b5e53' },
+    },
+  };
+};
+
+export function ThemeButton({ className }: { className?: string }) {
+  const { theme, toggle } = useTheme();
+  const dark = theme === 'dark';
+  return (
+    <button className={`theme-btn${className ? ' ' + className : ''}`} onClick={toggle} title={dark ? 'Kunduzgi rejim' : 'Tungi rejim'} aria-label={dark ? 'Kunduzgi rejimga o‘tish' : 'Tungi rejimga o‘tish'}>
+      <Icon name={dark ? 'sun' : 'moon'} size={18} /><span>{dark ? 'Kunduzgi rejim' : 'Tungi rejim'}</span>
+    </button>
+  );
 }
 
 // ---------- signed-in user ----------

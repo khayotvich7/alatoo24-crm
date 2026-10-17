@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from 'react';
+import { StrictMode, useContext, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, type Area, getToken, type Me, setToken, setUnauthorizedHandler } from './api';
 import Analytics from './pages/Analytics';
@@ -9,12 +9,11 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Orders from './pages/Orders';
 import Products, { CreateProduct } from './pages/Products';
-import Warehouse from './pages/Warehouse';
 import Velaris from '@/components/ui/velaris';
 import { useSpotlight } from '@/components/ui/spotlight-card';
 import { TextShimmer } from '@/components/ui/text-shimmer';
 import './styles.css';
-import { Icon, MeCtx, ToastProvider, useCan, useLoad, useMe } from './ui';
+import { Icon, initialTheme, MeCtx, saveTheme, type Theme, ThemeButton, ThemeCtx, ToastProvider, useCan, useLoad, useMe } from './ui';
 
 type Rule = { area?: Area; level?: 1 | 2; owner?: boolean };
 const PAGES = [
@@ -22,7 +21,6 @@ const PAGES = [
   { id: 'orders', label: 'Buyurtmalar', short: 'Buyurtma', icon: 'orders', el: Orders, sec: '', rule: { area: 'orders' } as Rule },
   { id: 'products', label: 'Tovarlar', short: 'Tovar', icon: 'box', el: Products, sec: 'Katalog', rule: { area: 'products' } as Rule },
   { id: 'create', label: 'Yangi tovar', short: 'Yaratish', icon: 'plus', el: CreateProduct, sec: '', rule: { area: 'products', level: 2 } as Rule },
-  { id: 'stock', label: 'Sklad', short: 'Sklad', icon: 'store', el: Warehouse, sec: '', rule: { area: 'stock' } as Rule },
   { id: 'customers', label: 'Mijozlar', short: 'Mijoz', icon: 'users', el: Customers, sec: 'Tahlil', rule: { area: 'customers' } as Rule },
   { id: 'finance', label: 'Moliya', short: 'Moliya', icon: 'wallet', el: Finance, sec: 'Rahbar', rule: { owner: true } as Rule },
   { id: 'analytics', label: 'Analitika', short: 'Tahlil', icon: 'chart', el: Analytics, sec: '', rule: { owner: true } as Rule },
@@ -44,7 +42,22 @@ const readHash = () => {
   return { page: (PAGES.some(p => p.id === page) ? page : 'home') as PageId, arg: arg ?? null };
 };
 
+// Brand palette for the animated night background: emerald greens with a hint of champagne gold.
+const BG_COLORS = ['#0f5c3a', '#1f7a49', '#8a6a2e', '#020604'];
+
 function App() {
+  const [theme, setTheme] = useState<Theme>(initialTheme);
+  useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
+  const themeCtx = { theme, toggle: () => setTheme(t => { const n = t === 'dark' ? 'light' : 'dark'; saveTheme(n); return n; }) };
+  return (
+    <ThemeCtx.Provider value={themeCtx}>
+      <Shell />
+    </ThemeCtx.Provider>
+  );
+}
+
+function Shell() {
+  const theme = useContext(ThemeCtx).theme;
   const [authed, setAuthed] = useState(!!getToken());
   const [route, setRoute] = useState(readHash);
   const [me, setMe] = useState<Me | null>(null);
@@ -60,13 +73,17 @@ function App() {
     api<{ user: Me }>('/api/admin/me').then(r => setMe(r.user)).catch(() => {});
   }, [authed]);
 
-  if (!authed) return <Login onDone={() => setAuthed(true)} />;
-  if (!me) return <div className="boot"><img src="/favicon.png" alt="" /></div>;
+  // The animated background stays on the login page in both modes (its card is designed for it).
+  const bg = !authed || theme === 'dark' ? <Velaris bg="#030806" colors={BG_COLORS} speed={1.2} grain={0.35} height="100%" className="app-bg" /> : null;
+  if (!authed) return <>{bg}<Login onDone={() => setAuthed(true)} /></>;
+  if (!me) return <>{bg}<div className="boot"><img src="/favicon.png" alt="" /></div></>;
   const pages = PAGES.filter(p => allowed(me, p));
   const page = pages.find(p => p.id === route.page) ?? pages[0];
   const Page = page.el;
   return (
     <MeCtx.Provider value={me}>
+      {bg}
+      <ThemeButton className="mobile-only" />
       <div className="shell">
         <Side current={page.id} pages={pages} />
         <main className="main">
@@ -102,6 +119,7 @@ function Side({ current, pages }: { current: PageId; pages: Page[] }) {
         ])}
       </nav>
       <div className="foot nav">
+        <ThemeButton />
         <div className="who"><span>{me.name.slice(0, 1).toUpperCase()}</span><div><b>{me.role === 'owner' ? 'Rahbar' : me.name}</b><small>{me.role === 'owner' ? `Rahbar · ${me.login}` : `Xodim · ${me.login}`}</small></div></div>
         <a href="#" onClick={e => { e.preventDefault(); setToken(null); location.reload(); }}><Icon name="out" size={19} />Chiqish</a>
       </div>
@@ -123,12 +141,8 @@ function TabBar({ current, pages }: { current: PageId; pages: Page[] }) {
   );
 }
 
-// Brand palette for the animated background: emerald greens with a hint of champagne gold.
-const BG_COLORS = ['#0f5c3a', '#1f7a49', '#8a6a2e', '#020604'];
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Velaris bg="#030806" colors={BG_COLORS} speed={1.2} grain={0.35} height="100%" className="app-bg" />
     <ToastProvider><App /></ToastProvider>
   </StrictMode>,
 );
