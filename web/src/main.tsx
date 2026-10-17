@@ -1,4 +1,4 @@
-import { StrictMode, useContext, useEffect, useState } from 'react';
+import { StrictMode, useContext, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, type Area, getToken, type Me, setToken, setUnauthorizedHandler } from './api';
 import Analytics from './pages/Analytics';
@@ -13,7 +13,7 @@ import Velaris from '@/components/ui/velaris';
 import { useSpotlight } from '@/components/ui/spotlight-card';
 import { TextShimmer } from '@/components/ui/text-shimmer';
 import './styles.css';
-import { Icon, initialTheme, MeCtx, saveTheme, type Theme, ThemeButton, ThemeCtx, ToastProvider, useCan, useLoad, useMe } from './ui';
+import { Icon, initialTheme, MeCtx, saveTheme, type Theme, ThemeButton, ThemeCtx, ToastProvider, useCan, useLive, useLoad, useMe, useToast } from './ui';
 
 type Rule = { area?: Area; level?: 1 | 2; owner?: boolean };
 const PAGES = [
@@ -95,16 +95,35 @@ function Shell() {
   );
 }
 
-function useNewCount() {
+/** Short soft chime for a new order (silently skipped if the browser blocks audio). */
+function ding() {
+  try {
+    const ctx = new AudioContext();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(880, ctx.currentTime); o.frequency.setValueAtTime(1320, ctx.currentTime + 0.12);
+    g.gain.setValueAtTime(0.0001, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.45);
+    o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.5);
+  } catch { /* no audio */ }
+}
+
+function useNewCount(announce = false) {
   // Refresh the "new orders" badge every 30 s so a fresh order is noticed without reloading.
   const can = useCan();
+  const toast = useToast();
   const { data, reload } = useLoad<{ total: number }>(can('orders') ? '/api/admin/orders?status=new' : null);
-  useEffect(() => { const t = setInterval(reload, 30_000); return () => clearInterval(t); }, [reload]);
-  return data?.total ?? 0;
+  useLive(reload);
+  // Announce a newly arrived order (count went up since the last check).
+  const prev = useRef<number | null>(null);
+  const total = data?.total ?? 0;
+  useEffect(() => {
+    if (announce && data && prev.current !== null && total > prev.current) { toast('🔔 Yangi buyurtma keldi!'); ding(); }
+    if (data) prev.current = total;
+  }, [data, total, toast]);
+  return total;
 }
 
 function Side({ current, pages }: { current: PageId; pages: Page[] }) {
-  const n = useNewCount();
+  const n = useNewCount(!matchMedia('(max-width: 900px)').matches);
   const me = useMe();
   return (
     <aside className="side">
@@ -128,7 +147,7 @@ function Side({ current, pages }: { current: PageId; pages: Page[] }) {
 }
 
 function TabBar({ current, pages }: { current: PageId; pages: Page[] }) {
-  const n = useNewCount();
+  const n = useNewCount(matchMedia('(max-width: 900px)').matches);
   return (
     <nav className="tabbar">
       {pages.map(p => (

@@ -121,14 +121,35 @@ export function useLoad<T>(path: string | null) {
   const [error, setError] = useState('');
   const [tick, setTick] = useState(0);
   const seq = useRef(0);
+  const has = useRef(false);
   useEffect(() => {
     if (!path) return;
     const n = ++seq.current;
-    setError('');
-    api<T>(path).then(d => n === seq.current && setData(d)).catch(e => n === seq.current && setError(e.message));
+    api<T>(path).then(d => { if (n === seq.current) { has.current = true; setError(''); setData(d); } })
+      .catch(e => { if (n === seq.current && !has.current) setError(e.message); }); // a failed background refresh keeps the last data
   }, [path, tick]);
   return { data, error, reload: useCallback(() => setTick(t => t + 1), []) };
 }
+
+// ---------- live refresh ----------
+
+/** How often open pages re-fetch their data (orders can arrive from the app at any moment). */
+export const LIVE_MS = 5_000;
+
+/** Calls `refresh` every LIVE_MS while the tab is visible, and right away when the tab comes back into view. */
+export function useLive(refresh: () => void, ms = LIVE_MS) {
+  const fn = useRef(refresh);
+  fn.current = refresh;
+  useEffect(() => {
+    const tick = () => { if (document.visibilityState === 'visible') fn.current(); };
+    const t = setInterval(tick, ms);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', tick); };
+  }, [ms]);
+}
+
+/** Small "● Jonli" badge shown next to live pages. */
+export const LiveDot = () => <span className="live-dot" title="Har 5 soniyada avtomatik yangilanadi"><i />Jonli</span>;
 
 // ---------- toast ----------
 

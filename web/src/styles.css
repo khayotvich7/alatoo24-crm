@@ -573,3 +573,8 @@ input[type='checkbox'] { accent-color: var(--brand); width: 18px; height: 18px; 
 [data-theme="light"] .chip:hover { box-shadow: 0 0 14px rgba(151, 106, 32, 0.15); }
 [data-theme="light"] .chip.on { color: #fff; background: linear-gradient(180deg, #1f8f57, #0b4d2e) padding-box, var(--metal) border-box; box-shadow: 0 6px 16px rgba(23, 134, 79, 0.25); }
 [data-theme="light"] .pcard .media::after { background: linear-gradient(180deg, transparent 60%, rgba(60, 45, 20, 0.25)); }
+
+/* live badge */
+.live-dot { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--ok); background: var(--brand-soft); }
+.live-dot i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 0 currentColor; animation: livePulse 1.6s ease-out infinite; }
+@keyframes livePulse { 0% { box-shadow: 0 0 0 0 rgba(61, 214, 140, .6); } 100% { box-shadow: 0 0 0 8px rgba(61, 214, 140, 0); } }
