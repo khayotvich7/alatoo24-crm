@@ -6,7 +6,7 @@ import { NumberTicker } from '@/components/ui/number-ticker';
 import { ShinyButton } from '@/components/ui/shiny-button';
 import { TextShimmer } from '@/components/ui/text-shimmer';
 import { type Dashboard as D, money, short, STATUS, type Status, when } from '../api';
-import { Empty, Icon, Stat, useCan, useLoad, useMe } from '../ui';
+import { Empty, Icon, LiveDot, Stat, useCan, useLive, useLoad, useMe } from '../ui';
 
 const greet = () => { const h = new Date().getHours(); return h < 5 ? 'Xayrli tun' : h < 12 ? 'Xayrli tong' : h < 18 ? 'Xayrli kun' : 'Xayrli kech'; };
 const OY = ['yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun', 'iyul', 'avgust', 'sentabr', 'oktabr', 'noyabr', 'dekabr'];
@@ -20,7 +20,7 @@ export default function Dashboard(_: { arg: string | null }) {
   const { data: d, error, reload } = useLoad<D>('/api/admin/dashboard');
   const me = useMe();
   const can = useCan();
-  useEffect(() => { const t = setInterval(reload, 30_000); return () => clearInterval(t); }, [reload]);
+  useLive(reload);
   if (error) return <Empty title="Yuklab bo'lmadi" text={error} />;
   if (!d) return <div className="muted">Yuklanmoqda…</div>;
   const ss = (s: Status) => d.statusSums[s] ?? { n: 0, s: 0 };
@@ -34,7 +34,7 @@ export default function Dashboard(_: { arg: string | null }) {
         <div>
           <div className="small" style={{ color: 'var(--gold)', fontWeight: 800, letterSpacing: '.22em', textTransform: 'uppercase' }}>{greet()}, {me.role === 'owner' ? 'admin' : me.name}</div>
           <TextShimmer as="h1" className="dash-title">Bosh panel</TextShimmer>
-          <div className="muted small" style={{ marginTop: 6 }}>{today()} · har 30 soniyada yangilanadi</div>
+          <div className="muted small" style={{ marginTop: 6 }}>{today()} </div><div style={{ marginTop: 8 }}><LiveDot /></div>
         </div>
         <div className="actions"><ShinyButton tone="gold" className="shiny-sm" onClick={reload}><RefreshCw size={15} /> Yangilash</ShinyButton></div>
       </div>

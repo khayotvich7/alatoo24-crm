@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { type Dashboard, del, FLOW, money, type Order, type OrderRow, patch, STATUS, type Status, when } from '../api';
-import { Badge, Confirm, Drawer, Empty, Icon, Search, useCan, useLoad, useMe, useToast } from '../ui';
+import { Badge, Confirm, Drawer, Empty, Icon, LiveDot, Search, useCan, useLive, useLoad, useMe, useToast } from '../ui';
 import { MetalButton } from '@/components/ui/metal-button';
 
 const FILTERS: (Status | 'all')[] = ['all', 'new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'];
@@ -15,7 +15,7 @@ export default function Orders({ arg }: { arg: string | null }) {
   const qs = new URLSearchParams({ page: String(page), ...(status !== 'all' ? { status } : {}), ...(debounced ? { q: debounced } : {}) });
   const { data, error, reload } = useLoad<{ total: number; pages: number; orders: OrderRow[] }>(`/api/admin/orders?${qs}`);
   const counts = useLoad<Dashboard>('/api/admin/dashboard');
-  useEffect(() => { const t = setInterval(() => { reload(); counts.reload(); }, 30_000); return () => clearInterval(t); }, [reload, counts.reload]);
+  useLive(() => { reload(); counts.reload(); });
 
   const openId = arg ? Number(arg) : null;
   const open = (id: number) => { location.hash = `orders/${id}`; };
@@ -26,6 +26,7 @@ export default function Orders({ arg }: { arg: string | null }) {
     <div className="stack">
       <div className="head">
         <h1>Buyurtmalar</h1>
+        <LiveDot />
         <div className="actions" style={{ minWidth: 'min(320px, 100%)' }}><Search value={q} onChange={setQ} placeholder="Ism, telefon, № yoki manzil" /></div>
       </div>
 
@@ -94,6 +95,7 @@ const NEXT: Partial<Record<Status, { to: Status; label: string; cls: string }>> 
 
 function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
   const { data, error, reload } = useLoad<{ order: Order }>(`/api/admin/orders/${id}`);
+  useLive(reload); // see status changes made by others (or by the courier app) while the order is open
   const toast = useToast();
   const edit = useCan()('orders', 2);
   const owner = useMe().role === 'owner';
