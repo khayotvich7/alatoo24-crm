@@ -103,18 +103,6 @@ export default function Dashboard(_: { arg: string | null }) {
             <div className="muted small" style={{ marginTop: 8 }}>Mijozlar: {d.customers}{m ? ` · Kutilayotgan naqd: ${short(d.pendingCash)}` : ''}</div>
           </div>
 
-          {can('stock') ? <div className="card">
-            <div className="row" style={{ marginBottom: 10, gap: 8 }}>
-              <span className="t-amber" style={{ borderRadius: 10, width: 30, height: 30, display: 'grid', placeItems: 'center' }}><Icon name="alert" size={16} /></span>
-              <h2>Skladda kam qolgan</h2>
-            </div>
-            {d.lowStock.length ? d.lowStock.map(p => (
-              <a key={p.id} href="#stock" className="row between" style={{ padding: '6px 0', textDecoration: 'none', color: 'inherit', fontSize: 14 }}>
-                <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '75%' }}>{p.name}</span>
-                <b className="num" style={{ color: p.stock <= 0 ? 'var(--sale)' : 'var(--amber)' }}>{p.stock} ta</b>
-              </a>
-            )) : <div className="muted small">Hammasi yetarli ✓</div>}
-          </div> : null}
         </div>
       </div>
     </div>

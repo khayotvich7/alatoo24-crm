@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { type Analytics as A, money, short, STATUS } from '../api';
-import { Empty, Stat, useLoad } from '../ui';
+import { Empty, Stat, useChartColors, useLoad } from '../ui';
 
 const RANGES = [7, 30, 90, 365];
 const dm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
@@ -9,9 +9,6 @@ const WD = ['Yak', 'Du', 'Se', 'Chor', 'Pay', 'Ju', 'Shan'];
 const PIE = ['#2fbf7a', '#e3c98f', '#6aa8ff', '#a68cff', '#f2a24a', '#ff6b5e', '#c9d2d4', '#3dd68c'];
 const STATUS_COLOR: Record<string, string> = { new: '#6aa8ff', checking: '#e3c98f', confirmed: '#a68cff', ready: '#5fe0d6', delivered: '#2fbf7a', cancelled: '#ff6b5e' };
 
-const axis = { fontSize: 11, fill: '#6c8075' };
-const grid = 'rgba(255,255,255,.06)';
-const tip = { contentStyle: { borderRadius: 14, border: '1px solid rgba(255,255,255,.12)', background: '#0b1410', color: '#eef4f0', fontFamily: 'Manrope' }, itemStyle: { color: '#eef4f0' }, labelStyle: { color: '#a8b8ae' } };
 
 export default function Analytics(_: { arg: string | null }) {
   const [days, setDays] = useState(30);
@@ -35,15 +32,13 @@ export default function Analytics(_: { arg: string | null }) {
 }
 
 function Body({ a }: { a: A }) {
+  const { axis, grid, tip, cursor } = useChartColors();
   const created = a.byStatus.reduce((x, s) => x + s.n, 0);
   const delivered = a.byStatus.find(s => s.status === 'delivered')?.n ?? 0;
   const conversion = created ? Math.round((delivered / created) * 100) : 0;
   const margin = a.profit.covered ? Math.round((a.profit.profit / a.profit.covered) * 100) : null;
-  const stockValue = a.stock.reduce((x, p) => x + Math.max(0, p.stock) * p.price, 0);
-  const stockCost = a.stock.reduce((x, p) => x + (p.cost != null ? Math.max(0, p.stock) * p.cost : 0), 0);
   const weekday = WD.map((label, wd) => ({ label, ...(a.byWeekday.find(r => r.wd === wd) ?? { orders: 0, revenue: 0 }) }));
   const hours = Array.from({ length: 24 }, (_, h) => ({ h: `${h}`, orders: a.byHour.find(r => r.h === h)?.orders ?? 0 }));
-  const runningOut = a.stock.filter(p => p.daysLeft !== null).sort((x, y) => (x.daysLeft ?? 0) - (y.daysLeft ?? 0)).slice(0, 6);
 
   return (
     <>
@@ -56,7 +51,7 @@ function Body({ a }: { a: A }) {
       <div className="grid g4">
         <Stat k="Foyda (tannarx bo'yicha)" v={margin === null ? '—' : short(a.profit.profit)} s={margin === null ? 'tovarlarga tannarx kiriting' : `ustama ${margin}% · ${short(a.profit.covered)} savdodan`} icon="cash" tone="green" />
         <Stat k="O'rtacha yetkazish" v={a.avgDeliveryHours ? `${a.avgDeliveryHours} soat` : '—'} s="buyurtmadan yetkazilguncha" icon="clock" tone="amber" />
-        <Stat k="Sklad qiymati" v={short(stockValue)} s={stockCost ? `tannarxda ${short(stockCost)}` : 'sotuv narxida'} icon="store" tone="blue" />
+        <Stat k="Sotilgan tovarlar" v={`${a.itemsSold} ta`} s="yetkazilgan buyurtmalarda" icon="box" tone="blue" />
         <Stat k="Buyurtmalar (jami)" v={created} s={`shu davrda yaratilgan`} icon="orders" tone="gold" />
       </div>
 
@@ -165,7 +160,7 @@ function Body({ a }: { a: A }) {
                 <BarChart data={a.byRegion} layout="vertical" margin={{ left: 8, right: 16 }}>
                   <XAxis type="number" hide />
                   <YAxis type="category" dataKey="region" width={124} tick={{ fontSize: 12, fill: '#a8b8ae' }} axisLine={false} tickLine={false} />
-                  <Tooltip {...tip} cursor={{ fill: 'rgba(255,255,255,.04)' }} formatter={v => [money(Number(v)), 'Savdo']} />
+                  <Tooltip {...tip} cursor={cursor} formatter={v => [money(Number(v)), 'Savdo']} />
                   <Bar dataKey="revenue" fill="#e3c98f" radius={[0, 8, 8, 0]} barSize={18} />
                 </BarChart>
               </ResponsiveContainer>
@@ -183,7 +178,7 @@ function Body({ a }: { a: A }) {
                 <CartesianGrid stroke={grid} vertical={false} />
                 <XAxis dataKey="label" tick={axis} axisLine={false} tickLine={false} />
                 <YAxis allowDecimals={false} tick={axis} axisLine={false} tickLine={false} width={30} />
-                <Tooltip {...tip} cursor={{ fill: 'rgba(255,255,255,.04)' }} formatter={v => [Number(v), 'Buyurtma']} />
+                <Tooltip {...tip} cursor={cursor} formatter={v => [Number(v), 'Buyurtma']} />
                 <Bar dataKey="orders" fill="#6aa8ff" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -197,7 +192,7 @@ function Body({ a }: { a: A }) {
                 <CartesianGrid stroke={grid} vertical={false} />
                 <XAxis dataKey="h" tick={axis} axisLine={false} tickLine={false} interval={2} />
                 <YAxis allowDecimals={false} tick={axis} axisLine={false} tickLine={false} width={30} />
-                <Tooltip {...tip} cursor={{ fill: 'rgba(255,255,255,.04)' }} formatter={v => [Number(v), 'Buyurtma']} labelFormatter={l => `${l}:00`} />
+                <Tooltip {...tip} cursor={cursor} formatter={v => [Number(v), 'Buyurtma']} labelFormatter={l => `${l}:00`} />
                 <Bar dataKey="orders" fill="#a68cff" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
@@ -205,29 +200,6 @@ function Body({ a }: { a: A }) {
         </div>
       </div>
 
-      <div className="card">
-        <div className="row between wrap" style={{ marginBottom: 12 }}>
-          <h2>Sklad prognozi</h2>
-          <span className="muted small">shu davrdagi sotuv tezligi bo'yicha qoldiq necha kunga yetadi</span>
-        </div>
-        {!runningOut.length ? <div className="muted">Prognoz uchun shu davrda sotuv bo'lishi kerak</div> : (
-          <div className="scroll-x">
-            <table className="table">
-              <thead><tr><th>Tovar</th><th className="r">Qoldiq</th><th className="r">Sotildi</th><th className="r">Yetadi</th></tr></thead>
-              <tbody>
-                {runningOut.map(p => (
-                  <tr key={p.id} style={{ cursor: 'default' }}>
-                    <td style={{ fontWeight: 700 }}>{p.name}</td>
-                    <td className="r num">{p.stock} ta</td>
-                    <td className="r num">{p.sold} ta</td>
-                    <td className="r"><span className={`badge ${(p.daysLeft ?? 0) <= 7 ? 't-red' : (p.daysLeft ?? 0) <= 21 ? 't-amber' : 't-green'}`}>{p.daysLeft} kun</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
     </>
   );
 }

@@ -37,8 +37,6 @@ export default function Products(_: { arg: string | null }) {
   };
 
   const all = data?.products ?? [];
-  const units = all.reduce((a, p) => a + Math.max(0, p.stock), 0);
-  const value = all.reduce((a, p) => a + Math.max(0, p.stock) * p.price, 0);
 
   return (
     <div className="stack">
@@ -55,9 +53,9 @@ export default function Products(_: { arg: string | null }) {
 
       <div className="grid g4">
         <Stat k="Tovar turlari" v={all.length} s={`${all.filter(p => p.active).length} tasi ilovada`} icon="box" tone="green" />
-        <Stat k="Skladdagi jami" v={`${units} ta`} s="barcha tovarlar" icon="store" tone="blue" />
-        <Stat k="Sklad qiymati" v={short(value)} s="sotuv narxida" icon="cash" tone="gold" />
-        <Stat k="Kam qolgan" v={all.filter(p => p.stock <= p.lowStock).length} s="to'ldirish kerak" icon="alert" tone="amber" onClick={() => { location.hash = 'stock'; }} />
+        <Stat k="Ilovada" v={all.filter(p => p.active).length} s="mijozlar ko'radi" icon="check" tone="green" />
+        <Stat k="Yashirilgan" v={all.filter(p => !p.active).length} s="ilovada ko'rinmaydi" icon="ban" tone="gray" />
+        <Stat k="Chegirmada" v={all.filter(p => p.oldPrice).length} s={`o'rtacha narx ${short(all.length ? all.reduce((a, p) => a + p.price, 0) / all.length : 0)}`} icon="cash" tone="gold" />
       </div>
 
       <div className="chips">
@@ -69,7 +67,7 @@ export default function Products(_: { arg: string | null }) {
         <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))' }}>
           {list.map(p => (
             <div key={p.id} className="card pcard" style={{ opacity: p.active ? 1 : 0.55 }}>
-              <div className="media" onClick={() => setEdit(p)} style={{ background: p.images[0] ? p.bg : 'radial-gradient(circle at 50% 40%, #16261e, #070b09)' }}>
+              <div className="media" onClick={() => setEdit(p)} style={{ background: p.images[0] ? p.bg : 'var(--ph-bg)' }}>
                 {p.images[0] ? <img src={p.images[0]} alt="" loading="lazy" /> : (
                   <div style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' }}>
                     <div style={{ width: '46%', aspectRatio: '0.7', borderRadius: 16, background: p.tint, display: 'grid', placeItems: 'center', color: '#fff', fontFamily: 'var(--display)', fontWeight: 800 }}>{p.short || p.name.slice(0, 6)}</div>
@@ -77,7 +75,6 @@ export default function Products(_: { arg: string | null }) {
                 )}
                 {p.tag ? <span className="badge" style={{ position: 'absolute', top: 10, left: 10, background: 'var(--sale)', color: '#fff', zIndex: 1 }}>{p.tag}</span> : null}
                 {!p.active ? <span className="badge t-gray" style={{ position: 'absolute', top: 10, right: 10, zIndex: 1 }}>Yashirin</span> : null}
-                <span className={`badge ${p.stock <= 0 ? 't-red' : p.stock <= p.lowStock ? 't-amber' : 't-green'}`} style={{ position: 'absolute', left: 10, bottom: 10, zIndex: 1, backdropFilter: 'blur(8px)' }}>Skladda {p.stock} ta</span>
               </div>
               <div className="body">
                 <div className="muted small">{p.category || 'Kategoriyasiz'}</div>
@@ -231,13 +228,7 @@ function ProductForm({ product: p, cats, onClose, onSaved, onDelete, page }: { p
       </div>
 
       <div className="card stack">
-        <h3>Sklad va ko'rinish</h3>
-        <div className="grid g2">
-          {!p ? <Field label="Boshlang'ich qoldiq"><input className="input num" inputMode="numeric" value={f.stock} onChange={e => set({ stock: e.target.value })} placeholder="0" /></Field> : (
-            <Field label="Hozirgi qoldiq"><div className="input" style={{ background: 'transparent' }}>{p.stock} ta · <a href="#stock">Skladda o'zgartirish</a></div></Field>
-          )}
-          <Field label="Kam qoldi ogohlantirishi"><input className="input num" inputMode="numeric" value={f.lowStock} onChange={e => set({ lowStock: e.target.value })} /></Field>
-        </div>
+        <h3>Ko'rinish</h3>
         <label className="row"><input type="checkbox" checked={f.active} onChange={e => set({ active: e.target.checked })} /> Ilovada ko'rsatish</label>
         <label className="row"><input type="checkbox" checked={f.isNew} onChange={e => set({ isNew: e.target.checked })} /> "Yangi" deb belgilash</label>
       </div>

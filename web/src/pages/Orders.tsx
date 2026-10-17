@@ -131,7 +131,7 @@ function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => vo
           <MetalButton tone="ruby" disabled={busy} onClick={() => confirm(`№ ${o.no} bekor qilinsinmi?`) && save({ status: 'cancelled' }, 'Bekor qilindi')}>Bekor qilish</MetalButton>
         ) : null}
         {o.status === 'delivered' || o.status === 'cancelled' ? (
-          <MetalButton tone="ghost" disabled={busy} onClick={() => confirm('Buyurtma qayta ochilsinmi? Yetkazilgan bo‘lsa, tovar skladga qaytariladi.') && save({ status: 'confirmed' }, 'Qayta ochildi')}>Qayta ochish</MetalButton>
+          <MetalButton tone="ghost" disabled={busy} onClick={() => confirm('Buyurtma qayta ochilsinmi?') && save({ status: 'confirmed' }, 'Qayta ochildi')}>Qayta ochish</MetalButton>
         ) : null}
         {owner ? <button className="del-btn" style={{ marginLeft: 'auto', width: 46, height: 46, flexBasis: 46 }} title="Buyurtmani o'chirish" aria-label="Buyurtmani o'chirish" disabled={busy} onClick={() => setRm(true)}><Icon name="trash" size={18} /></button> : null}
       </>}
@@ -146,7 +146,7 @@ function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => vo
         </div>
         {o.status !== 'cancelled' ? (
           <div className="row" style={{ gap: 6, marginTop: 14 }}>
-            {FLOW.map((s, i) => <div key={s} style={{ flex: 1, height: 6, borderRadius: 3, background: i <= at ? 'var(--brand)' : 'rgba(255,255,255,.08)', boxShadow: i <= at ? '0 0 10px rgba(47,191,122,.5)' : 'none' }} title={STATUS[s].label} />)}
+            {FLOW.map((s, i) => <div key={s} style={{ flex: 1, height: 6, borderRadius: 3, background: i <= at ? 'var(--brand)' : 'var(--line)', boxShadow: i <= at ? '0 0 10px rgba(47,191,122,.5)' : 'none' }} title={STATUS[s].label} />)}
           </div>
         ) : null}
       </div>
@@ -183,7 +183,7 @@ function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => vo
         {note !== null && note !== o.adminNote ? <MetalButton size="sm" tone="emerald" style={{ marginTop: 10 }} disabled={busy} onClick={() => save({ adminNote: note }, 'Saqlandi').then(() => setNote(null))}>Saqlash</MetalButton> : null}
       </div>
 
-      {rm ? <Confirm title={`№ ${o.no} o'chirilsinmi?`} text={<>Buyurtma, uning tovarlari va tarixi butunlay o'chiriladi.{o.status === 'delivered' ? ' Yetkazilgan tovarlar skladga qaytariladi.' : ''}</>} busy={busy} onOk={remove} onCancel={() => setRm(false)} /> : null}
+      {rm ? <Confirm title={`№ ${o.no} o'chirilsinmi?`} text={<>Buyurtma, uning tovarlari va tarixi butunlay o'chiriladi.</>} busy={busy} onOk={remove} onCancel={() => setRm(false)} /> : null}
 
       <div className="card">
         <h3 style={{ marginBottom: 8 }}>Tarix</h3>

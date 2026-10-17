@@ -5,7 +5,7 @@ import { MetalButton } from '@/components/ui/metal-button';
 import { type ApiKey, type Area, AREA_LABEL, del, patch, type Perms, post, type Staff, when } from '../api';
 import { Confirm, Drawer, Empty, Field, Icon, useLoad, useToast } from '../ui';
 
-const AREAS: Area[] = ['orders', 'products', 'stock', 'customers'];
+const AREAS: Area[] = ['orders', 'products', 'customers'];
 const LEVELS = [{ v: 0, label: "Yo'q" }, { v: 1, label: "Ko'rish" }, { v: 2, label: "To'liq" }];
 const LEVEL_TEXT = ['yopiq', "faqat ko'rish", "to'liq"];
 
@@ -21,7 +21,6 @@ const PRESETS: { label: string; perms: Perms }[] = [
   { label: "Faqat ko'rib chiqish", perms: { orders: 1, products: 1, stock: 1, customers: 1 } },
   { label: 'Operator', perms: { orders: 2, products: 1, stock: 1, customers: 1 } },
   { label: 'Tekshiruvchi', perms: { orders: 2, products: 1, stock: 0, customers: 1 } },
-  { label: 'Omborchi', perms: { orders: 1, products: 1, stock: 2, customers: 0 } },
 ];
 
 const TABS = [
@@ -244,7 +243,6 @@ function Cleanup() {
         </div>
       </div>
       <Row k="orders" title="Buyurtmalar" text="Barcha buyurtmalar, ularning tovarlari va tarixi" n={data?.orders} />
-      {pick.orders ? <Row k="restock" title="Tovarlarni skladga qaytarish" text="Yetkazilgan buyurtmalardagi tovarlar sklad qoldig'iga qo'shiladi (sinov buyurtmalari uchun)" /> : null}
       <Row k="customers" title="Mijozlar" text="Mijozlar ro'yxati (buyurtmalar bilan birga o'chadi)" n={data?.customers} />
       <Row k="expenses" title="Xarajatlar" text="Moliya bo'limidagi kiritilgan xarajatlar" n={data?.expenses} />
       <div className="row" style={{ justifyContent: 'flex-end', marginTop: 14 }}>
@@ -349,7 +347,7 @@ function ApiKeys() {
       <pre className="codeblock big">{`GET ${API_BASE}/api/admin/orders
 X-API-Key: ak_sizning_kalitingiz`}</pre>
       <div className="muted small" style={{ lineHeight: 1.7 }}>
-        Manzillar: <code className="kcode">/api/admin/orders</code> <code className="kcode">/api/admin/orders/ID</code> <code className="kcode">/api/admin/products</code> <code className="kcode">/api/admin/customers</code> <code className="kcode">/api/admin/stock/moves</code><br />
+        Manzillar: <code className="kcode">/api/admin/orders</code> <code className="kcode">/api/admin/orders/ID</code> <code className="kcode">/api/admin/products</code> <code className="kcode">/api/admin/customers</code><br />
         Kalitni faqat saytingizning <b>server</b> qismida saqlang. Moliya, xodimlar va pul summalari kalit orqali berilmaydi.
       </div>
 
@@ -393,7 +391,7 @@ X-API-Key: ak_sizning_kalitingiz`}</pre>
             <pre className="codeblock">{`GET ${API_BASE}/api/admin/orders
 X-API-Key: ${fresh}`}</pre>
             <div className="muted small" style={{ lineHeight: 1.6 }}>
-              Manzillar: <code className="kcode">/api/admin/orders</code>, <code className="kcode">/api/admin/orders/ID</code>, <code className="kcode">/api/admin/products</code>, <code className="kcode">/api/admin/customers</code>, <code className="kcode">/api/admin/stock/moves</code>.
+              Manzillar: <code className="kcode">/api/admin/orders</code>, <code className="kcode">/api/admin/orders/ID</code>, <code className="kcode">/api/admin/products</code>, <code className="kcode">/api/admin/customers</code>,.
               Kalitni faqat saytingizning <b>server</b> qismida saqlang — sahifa kodiga (brauzerga) qo'ymang, aks holda uni boshqalar ko'rib qoladi.
             </div>
             <div className="row" style={{ marginTop: 16, justifyContent: 'flex-end' }}>
@@ -456,7 +454,7 @@ function ArdenCard() {
           <MetalButton size="lg" tone="emerald" disabled={busy} icon={<Plus size={18} />} onClick={create}>{data?.connected ? 'Yangi kalit berish' : 'Arden uchun kalit yaratish'}</MetalButton>
           {data?.connected ? (
             sure
-              ? <><span className="small" style={{ color: '#ff8b80' }}>Arden ulanishi uziladi. Ishonchingiz komilmi?</span><button className="confirm-btn danger" disabled={busy} onClick={revoke}>Ha, bekor qilish</button><button className="confirm-btn ghost" onClick={() => setSure(false)}>Yo‘q</button></>
+              ? <><span className="small" style={{ color: 'var(--sale)' }}>Arden ulanishi uziladi. Ishonchingiz komilmi?</span><button className="confirm-btn danger" disabled={busy} onClick={revoke}>Ha, bekor qilish</button><button className="confirm-btn ghost" onClick={() => setSure(false)}>Yo‘q</button></>
               : <button className="confirm-btn ghost" onClick={() => setSure(true)}>Kalitni bekor qilish</button>
           ) : null}
           {data?.connected ? <span className="muted small">Yaratilgan: {t(data.createdAt)} · oxirgi ulanish: {t(data.usedAt)}</span> : null}

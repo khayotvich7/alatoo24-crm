@@ -5,12 +5,10 @@ import { GlowingCard } from '@/components/ui/glowing-card';
 import { MetalButton } from '@/components/ui/metal-button';
 import { NumberTicker } from '@/components/ui/number-ticker';
 import { del, type Finance as F, money, post, short } from '../api';
-import { Empty, Field, Stat, useLoad, useToast } from '../ui';
+import { Empty, Field, Stat, useChartColors, useLoad, useToast } from '../ui';
 
 const RANGES = [7, 30, 90, 365];
 const CATS = ['Reklama', 'Yetkazish', 'Ish haqi', 'Ijara', 'Tovar xaridi', 'Qadoq', 'Boshqa'];
-const axis = { fill: '#8aa094', fontSize: 11 };
-const grid = 'rgba(255,255,255,.06)';
 const dm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
 const todayStr = () => new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
 const T = ({ v, f = money }: { v: number; f?: (n: number) => string }) => <NumberTicker value={v} format={f} />;
@@ -36,6 +34,7 @@ export default function Finance(_: { arg: string | null }) {
 }
 
 function Body({ f, reload }: { f: F; reload: () => void }) {
+  const { axis, grid, tip } = useChartColors();
   const margin = f.revenue ? Math.round((f.net / f.revenue) * 100) : 0;
   return (
     <>
@@ -76,7 +75,7 @@ function Body({ f, reload }: { f: F; reload: () => void }) {
               <CartesianGrid stroke={grid} vertical={false} />
               <XAxis dataKey="day" tickFormatter={dm} tick={axis} axisLine={false} tickLine={false} minTickGap={18} />
               <YAxis tickFormatter={v => short(Number(v))} tick={axis} axisLine={false} tickLine={false} width={70} />
-              <Tooltip contentStyle={{ background: '#0b1410', border: '1px solid rgba(227,201,143,.25)', borderRadius: 12 }} labelFormatter={l => dm(String(l))} formatter={(v, n) => [money(Number(v)), n === 'revenue' ? 'Tushum' : 'Xarajat']} />
+              <Tooltip {...tip} labelFormatter={l => dm(String(l))} formatter={(v, n) => [money(Number(v)), n === 'revenue' ? 'Tushum' : 'Xarajat']} />
               <Legend formatter={v => (v === 'revenue' ? 'Tushum' : 'Xarajat')} />
               <Area type="monotone" dataKey="revenue" stroke="#e3c98f" strokeWidth={2} fill="url(#finRev)" />
               <Bar dataKey="expenses" fill="#e2554a" radius={[4, 4, 0, 0]} maxBarSize={18} />
@@ -139,7 +138,7 @@ function Expenses({ f, reload }: { f: F; reload: () => void }) {
                   <div className="muted small">{dm(e.day)}.{e.day.slice(0, 4)}</div>
                 </div>
                 <div className="row" style={{ gap: 10 }}>
-                  <b className="num" style={{ color: '#ff8b80' }}>−{money(e.amount)}</b>
+                  <b className="num" style={{ color: 'var(--sale)' }}>−{money(e.amount)}</b>
                   <button className="del-btn" title="O'chirish" aria-label="O'chirish" onClick={() => remove(e.id)}><Trash2 size={14} /></button>
                 </div>
               </div>
