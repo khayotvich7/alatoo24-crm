@@ -192,8 +192,8 @@ export function setStatus(id: number, status: Status, note = '') {
     if (!o) throw new HttpError(404, 'Buyurtma topilmadi');
     if (o.status === status) return getOrder(id)!;
     const c = one<{ consult: string }>('SELECT consult FROM orders WHERE id = ?', id)!.consult;
-    if ((status === 'ready' || status === 'courier' || status === 'delivered') && c === 'needed') throw new HttpError(409, 'Avval mutaxassis maslahati kerak: buyurtmani mutaxassis tasdiqlasin');
-    if ((status === 'ready' || status === 'courier' || status === 'delivered') && c === 'rejected') throw new HttpError(409, "Mutaxassis rad etgan buyurtmani jo'natib bo'lmaydi");
+    if ((status === 'ready' || status === 'delivered') && c === 'needed') throw new HttpError(409, 'Avval mutaxassis maslahati kerak: buyurtmani mutaxassis tasdiqlasin');
+    if ((status === 'ready' || status === 'delivered') && c === 'rejected') throw new HttpError(409, "Mutaxassis rad etgan buyurtmani jo'natib bo'lmaydi");
     const items = all<{ product_id: number; qty: number }>('SELECT product_id, qty FROM order_items WHERE order_id = ?', id);
     // Stock leaves the warehouse when the courier hands the goods over (delivered),
     // and comes back if a delivered order is reopened or cancelled.
