@@ -1,0 +1,29 @@
+/* Mijozlar → Voronka (kanban). Uses the theme tokens, so it follows day/night mode. */
+.pipe-wrap { min-width: 0; }
+.pipe { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 1fr); gap: 12px; overflow-x: auto; padding-bottom: 8px; scroll-snap-type: x proximity; }
+.pipe-col { display: flex; flex-direction: column; min-height: 320px; max-height: calc(100vh - 260px); border-radius: 18px; background: var(--surface); border: 1px solid var(--line); padding: 10px; scroll-snap-align: start; transition: border-color .15s, background .15s; }
+.pipe-col.over { border-color: var(--gold); background: var(--gold-soft); }
+.pipe-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 12px; font-weight: 800; font-size: 13.5px; }
+.pipe-help { padding: 6px 4px 8px; min-height: 30px; }
+.pipe-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; padding-right: 2px; }
+.pipe-empty { padding: 18px 8px; text-align: center; border: 1px dashed var(--line); border-radius: 12px; }
+.pipe-card { display: flex; flex-direction: column; gap: 3px; padding: 11px 12px; border-radius: 14px; background: var(--bg2, rgba(0, 0, 0, .18)); border: 1px solid var(--line); cursor: pointer; transition: transform .12s, border-color .12s; }
+.pipe-card:hover { border-color: rgba(227, 201, 143, .45); transform: translateY(-1px); }
+.pipe-card[draggable="true"] { cursor: grab; }
+.pipe-card[draggable="true"]:active { cursor: grabbing; }
+.pipe-card a { color: inherit; text-decoration: none; opacity: .85; }
+.pipe-items { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.pipe-days { color: var(--ok); font-weight: 600; }
+.pipe-days.warn { color: var(--amber); }
+.pipe-hint { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 4px; padding: 6px 8px; border-radius: 10px; background: var(--gold-soft); color: var(--gold); font-weight: 600; }
+.pipe-foot { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.pipe-select { flex: 1; min-width: 0; font: inherit; font-size: 12.5px; padding: 5px 8px; border-radius: 9px; background: var(--surface); color: inherit; border: 1px solid var(--line); }
+.pipe-select option { color: #111; }
+.pipe-mini { font: inherit; font-size: 12px; font-weight: 700; padding: 4px 9px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: inherit; cursor: pointer; white-space: nowrap; }
+.pipe-mini:hover { border-color: var(--gold); color: var(--gold); }
+.view-toggle { display: inline-flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+[data-theme="light"] .pipe-card { background: rgba(255, 255, 255, .75); }
+@media (max-width: 900px) {
+  .pipe { grid-auto-columns: 82%; }
+  .pipe-col { max-height: none; }
+}
