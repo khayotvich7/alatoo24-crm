@@ -15,6 +15,7 @@ import {
 } from './shop.ts';
 import { analytics, dashboard, finance } from './stats.ts';
 import { partnerAdmin, partnerFeed } from './partner.ts';
+import { pipelineAdmin, registerPipeline } from './pipeline.ts';
 import { pushOrder } from './push.ts';
 import { HOTLINE, registerSupport, registerSupportAdmin } from './support.ts';
 import { registerMarketing, registerMarketingAdmin } from './marketing-routes.ts';
@@ -53,6 +54,7 @@ app.get('/api/health', async () => ({ ok: true }));
 
 // Read-only feed for Arden, guarded by its own key (x-api-key: a24_...).
 partnerFeed(app);
+registerPipeline(app);
 
 app.get('/api/conditions', async () => ({ notAllowed: CONDITIONS.notAllowed, minAge: CONDITIONS.minAge }));
 
@@ -128,6 +130,8 @@ app.register(async admin => {
 
   // Arden integration key (owner only)
   partnerAdmin(admin, ownerOnly);
+  // Customer funnel board (Mijozlar → Voronka): anyone with customer access views, only the owner moves cards.
+  pipelineAdmin(admin, req => need(req, 1, 'customers'), ownerOnly);
 
   // Staff see counts only; money totals are for the owner.
   admin.get('/dashboard', async req => {
