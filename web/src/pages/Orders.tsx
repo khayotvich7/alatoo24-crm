@@ -157,6 +157,10 @@ function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => vo
           <div className="row" style={{ gap: 6, marginTop: 14 }}>
             {FLOW.map((s, i) => <div key={s} style={{ flex: 1, height: 6, borderRadius: 3, background: i <= at ? 'var(--brand)' : 'var(--line)', boxShadow: i <= at ? '0 0 10px rgba(47,191,122,.5)' : 'none' }} title={STATUS[s].label} />)}
           </div>
+        ) : o.cancelReason ? (
+          <div className="small" style={{ marginTop: 12, padding: '10px 12px', borderRadius: 12, background: 'var(--sale-soft)', color: 'var(--sale)' }}>
+            <b>Mijoz bekor qildi:</b> {o.cancelReason}
+          </div>
         ) : null}
       </div>
 

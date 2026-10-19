@@ -2,6 +2,8 @@
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { all, one, type Row, run, tx } from './db.ts';
+import { pushOrderStatus, validPushToken } from './push.ts';
+import { customerKeys, onStatus, priceOrder, spendPoints } from './marketing.ts';
 
 export const PROMO = { code: 'ALATOO15', percent: 15 };
 // new → checking (Tekshiruvda) → confirmed → ready (Dastavkaga, out for delivery) → delivered; cancelled at any point.
@@ -98,6 +100,10 @@ export type OrderInput = {
   address: { region: string; street: string; flat?: string; landmark?: string };
   items: { id: number; qty: number }[];
   profile?: HealthProfile;
+  pushToken?: string | null;
+  /** Points the customer wants to spend, proven by their customer token. */
+  points?: number;
+  customerToken?: string;
 };
 
 function nextOrderNo() {
@@ -125,6 +131,7 @@ export function createOrder(b: OrderInput) {
     const subtotal = items.reduce((a, i) => a + i.price * i.qty, 0);
 
     let customer = one<{ id: number }>('SELECT id FROM customers WHERE phone = ?', phone);
+    const isNewCustomer = !customer;
     if (!customer) customer = { id: Number(run('INSERT INTO customers (phone, name, phone2) VALUES (?,?,?)', phone, b.name.trim(), phone2).lastInsertRowid) };
     else run('UPDATE customers SET name = ?, phone2 = ? WHERE id = ?', b.name.trim(), phone2, customer.id);
 
@@ -138,23 +145,28 @@ export function createOrder(b: OrderInput) {
     const consult = needsConsult({ conditions: conds, age, other }) ? 'needed' : '';
     const health = h ? JSON.stringify({ age, gender: h.gender ?? '', weight, conditions: conds.map(c => CONDITION_LABEL.get(c)), other }) : '';
 
-    // Promo is for a customer's first (not cancelled) order only.
-    const promoOk = (b.promo ?? '').trim().toUpperCase() === PROMO.code
-      && !one("SELECT id FROM orders WHERE customer_id = ? AND status != 'cancelled'", customer.id);
-    const discount = promoOk ? Math.round((subtotal * PROMO.percent) / 100 / 100) * 100 : 0;
+    // Promo or referral code, and points; the rules live in marketing.ts.
+    const price = priceOrder({ subtotal, customerId: customer.id, isNewCustomer, phone, promo: b.promo, points: b.points, customerToken: b.customerToken });
+    const discount = price.discount;
 
     const no = nextOrderNo();
     const token = randomBytes(16).toString('hex');
     const a = b.address;
     const id = Number(run(
-      `INSERT INTO orders (no, token, customer_id, name, phone, phone2, region, street, flat, landmark, comment, subtotal, discount, total, promo, health, consult)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO orders (no, token, customer_id, name, phone, phone2, region, street, flat, landmark, comment, subtotal, discount, total, promo, health, consult, push_token, points_used, ref_customer_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       no, token, customer.id, b.name.trim(), phone, phone2, String(a.region ?? ''), a.street.trim(), String(a.flat ?? ''), String(a.landmark ?? ''),
-      String(b.comment ?? '').slice(0, 300), subtotal, discount, subtotal - discount, promoOk ? PROMO.code : null, health, consult,
+      String(b.comment ?? '').slice(0, 300), subtotal, discount, subtotal - discount - price.pointsUsed, price.promoCode, health, consult,
+      validPushToken(b.pushToken), price.pointsUsed, price.refCustomerId,
     ).lastInsertRowid);
+    spendPoints(customer.id, id, no, price.pointsUsed);
     for (const i of items) run('INSERT INTO order_items (order_id, product_id, name, price, qty) VALUES (?,?,?,?,?)', id, i.id, i.name, i.price, i.qty);
     run("INSERT INTO order_events (order_id, status, note) VALUES (?, 'new', ?)", id, consult ? 'Ilovadan · mutaxassis maslahati kerak' : 'Ilovadan');
-    return getOrder(id)!;
+    // The private customer token goes only to a brand-new customer or to a device that already holds it,
+    // so typing someone else's phone number never hands over their points.
+    const keys = customerKeys(customer.id);
+    const trusted = isNewCustomer || (!!b.customerToken && b.customerToken === keys.token);
+    return { ...getOrder(id)!, customer: trusted ? { token: keys.token, refCode: keys.refCode } : null };
   });
 }
 
@@ -166,7 +178,7 @@ export function getOrder(id: number) {
     address: { region: o.region, street: o.street, flat: o.flat, landmark: o.landmark }, comment: o.comment,
     subtotal: o.subtotal, discount: o.discount, total: o.total, promo: o.promo, adminNote: o.admin_note,
     customerId: o.customer_id, createdAt: o.created_at, updatedAt: o.updated_at, deliveredAt: o.delivered_at,
-    consult: String(o.consult ?? ''), health: o.health ? JSON.parse(String(o.health)) : null,
+    consult: String(o.consult ?? ''), pointsUsed: Number(o.points_used ?? 0), cancelReason: String(o.cancel_reason ?? ''), health: o.health ? JSON.parse(String(o.health)) : null,
     items: all('SELECT product_id id, name, price, qty FROM order_items WHERE order_id = ?', id),
     events: all('SELECT status, note, created_at createdAt FROM order_events WHERE order_id = ? ORDER BY id', id),
   };
@@ -201,6 +213,8 @@ export function setStatus(id: number, status: Status, note = '') {
     if (o.status === 'delivered') for (const i of items) moveStock(i.product_id, 'return', i.qty, 'Yetkazish bekor qilindi', id);
     run(`UPDATE orders SET status = ?, updated_at = datetime('now'), delivered_at = ${status === 'delivered' ? "datetime('now')" : 'NULL'} WHERE id = ?`, status, id);
     run('INSERT INTO order_events (order_id, status, note) VALUES (?,?,?)', id, status, note);
+    onStatus(id, o.status, status);
+    if (status === 'ready' || status === 'delivered') void pushOrderStatus(id, status);
     return getOrder(id)!;
   });
 }

@@ -48,6 +48,7 @@ export type Order = {
   items: { id: number; name: string; price: number; qty: number }[];
   events: { status: Status; note: string; createdAt: string }[];
   consult: Consult;
+  cancelReason: string;
   health: { age: number | null; gender: string; weight: number | null; conditions: string[]; other: string } | null;
 };
 

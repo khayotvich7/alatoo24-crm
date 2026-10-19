@@ -160,6 +160,8 @@ addColumn('customers', 'consent_at', 'TEXT');
 // '' (not needed) | 'needed' | 'approved' | 'rejected'.
 addColumn('orders', 'health', "TEXT NOT NULL DEFAULT ''");
 addColumn('orders', 'consult', "TEXT NOT NULL DEFAULT ''");
+addColumn('orders', 'cancel_reason', "TEXT NOT NULL DEFAULT ''");
+addColumn('orders', 'push_token', "TEXT NOT NULL DEFAULT ''");
 
 /** Runs fn inside a transaction; rolls back if it throws. */
 export function tx<T>(fn: () => T): T {

@@ -2,6 +2,8 @@ import { StrictMode, useContext, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api, type Area, getToken, type Me, setToken, setUnauthorizedHandler } from './api';
 import Analytics from './pages/Analytics';
+import Chats from './pages/Chats';
+import Marketing from './pages/Marketing';
 import Finance from './pages/Finance';
 import Settings from './pages/Settings';
 import Customers from './pages/Customers';
@@ -19,11 +21,13 @@ type Rule = { area?: Area; level?: 1 | 2; owner?: boolean };
 const PAGES = [
   { id: 'home', label: 'Bosh panel', short: 'Panel', icon: 'home', el: Dashboard, sec: 'Savdo' },
   { id: 'orders', label: 'Buyurtmalar', short: 'Buyurtma', icon: 'orders', el: Orders, sec: '', rule: { area: 'orders' } as Rule },
+  { id: 'chats', label: 'Chatlar', short: 'Chat', icon: 'chat', el: Chats, sec: '', rule: { area: 'orders' } as Rule },
   { id: 'products', label: 'Tovarlar', short: 'Tovar', icon: 'box', el: Products, sec: 'Katalog', rule: { area: 'products' } as Rule },
   { id: 'create', label: 'Yangi tovar', short: 'Yaratish', icon: 'plus', el: CreateProduct, sec: '', rule: { area: 'products', level: 2 } as Rule },
   { id: 'customers', label: 'Mijozlar', short: 'Mijoz', icon: 'users', el: Customers, sec: 'Tahlil', rule: { area: 'customers' } as Rule },
   { id: 'finance', label: 'Moliya', short: 'Moliya', icon: 'wallet', el: Finance, sec: 'Rahbar', rule: { owner: true } as Rule },
   { id: 'analytics', label: 'Analitika', short: 'Tahlil', icon: 'chart', el: Analytics, sec: '', rule: { owner: true } as Rule },
+  { id: 'marketing', label: 'Marketing', short: 'Aksiya', icon: 'megaphone', el: Marketing, sec: '', rule: { owner: true } as Rule },
   { id: 'settings', label: 'Sozlamalar', short: 'Sozlama', icon: 'gear', el: Settings, sec: '', rule: { owner: true } as Rule },
 ] as const;
 type PageId = (typeof PAGES)[number]['id'];
@@ -122,8 +126,17 @@ function useNewCount(announce = false) {
   return total;
 }
 
+/** Support threads with a customer message nobody has opened yet. */
+function useChatCount() {
+  const can = useCan();
+  const { data, reload } = useLoad<{ unread: number }>(can('orders') ? '/api/admin/support' : null);
+  useLive(reload);
+  return data?.unread ?? 0;
+}
+
 function Side({ current, pages }: { current: PageId; pages: Page[] }) {
   const n = useNewCount(!matchMedia('(max-width: 900px)').matches);
+  const c = useChatCount();
   const me = useMe();
   return (
     <aside className="side">
@@ -134,6 +147,7 @@ function Side({ current, pages }: { current: PageId; pages: Page[] }) {
           <a key={p.id} href={`#${p.id}`} className={p.id === current ? 'on' : ''}>
             <Icon name={p.icon} size={19} />{p.label}
             {p.id === 'orders' && n ? <span className="count">{n}</span> : null}
+            {p.id === 'chats' && c ? <span className="count">{c}</span> : null}
           </a>,
         ])}
       </nav>
@@ -148,12 +162,14 @@ function Side({ current, pages }: { current: PageId; pages: Page[] }) {
 
 function TabBar({ current, pages }: { current: PageId; pages: Page[] }) {
   const n = useNewCount(matchMedia('(max-width: 900px)').matches);
+  const c = useChatCount();
   return (
     <nav className="tabbar">
       {pages.map(p => (
         <a key={p.id} href={`#${p.id}`} className={p.id === current ? 'on' : ''}>
           <Icon name={p.icon} size={20} />{p.short}
           {p.id === 'orders' && n ? <span className="count">{n}</span> : null}
+            {p.id === 'chats' && c ? <span className="count">{c}</span> : null}
         </a>
       ))}
     </nav>

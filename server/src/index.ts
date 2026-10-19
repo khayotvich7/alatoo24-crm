@@ -15,6 +15,10 @@ import {
 } from './shop.ts';
 import { analytics, dashboard, finance } from './stats.ts';
 import { partnerAdmin, partnerFeed } from './partner.ts';
+import { pushOrder } from './push.ts';
+import { HOTLINE, registerSupport, registerSupportAdmin } from './support.ts';
+import { registerMarketing, registerMarketingAdmin } from './marketing-routes.ts';
+import { registerLegal } from './legal.ts';
 
 // ---- who is calling, and what they may do ----
 type Req = FastifyRequest & { user?: User };
@@ -60,6 +64,8 @@ app.get('/api/catalog', async () => {
 app.post('/api/orders', async (req, reply) => {
   const order = createOrder(req.body as OrderInput);
   void notifyNewOrder(order as never);
+  // First of the three delivery messages on the customer's phone.
+  void pushOrder(String(one<{ push_token: string }>('SELECT push_token FROM orders WHERE id = ?', order.id)?.push_token ?? ''), Number(order.no), 'placed');
   return reply.code(201).send({ order: { ...publicOrder(order), token: order.token } });
 });
 
@@ -71,15 +77,23 @@ app.get('/api/orders/:no', async req => {
   return { order: publicOrder(getOrder(r.id)!) };
 });
 
-// The customer may cancel only while the shop has not confirmed the order yet.
+// The customer may cancel until the courier has the parcel, and must say why.
 app.post('/api/orders/:no/cancel', async req => {
   const { no } = req.params as { no: string };
   const { token } = req.query as { token?: string };
+  const reason = String(((req.body ?? {}) as { reason?: string }).reason ?? '').trim().slice(0, 500);
   const r = one<{ id: number; token: string; status: string }>('SELECT id, token, status FROM orders WHERE no = ?', Number(no));
   if (!r || !token || r.token !== token) throw new HttpError(404, 'Buyurtma topilmadi');
-  if (r.status !== 'new') throw new HttpError(409, "Buyurtma tasdiqlangan, bekor qilish uchun qo'ng'iroq qiling");
-  return { order: publicOrder(setStatus(r.id, 'cancelled', 'Mijoz bekor qildi')) };
+  if (reason.length < 3) throw new HttpError(400, 'Bekor qilish sababini yozing');
+  if (r.status === 'cancelled') throw new HttpError(409, 'Buyurtma allaqachon bekor qilingan');
+  if (!['new', 'checking', 'confirmed'].includes(r.status)) throw new HttpError(409, `Buyurtma kuryerga berilgan. Bekor qilish uchun ${HOTLINE} raqamiga qo'ng'iroq qiling`);
+  run('UPDATE orders SET cancel_reason = ? WHERE id = ?', reason, r.id);
+  return { order: publicOrder(setStatus(r.id, 'cancelled', `Mijoz bekor qildi: ${reason}`)) };
 });
+
+registerSupport(app);
+registerMarketing(app);
+registerLegal(app);
 
 // ---------------- CRM API ----------------
 
@@ -100,6 +114,17 @@ app.register(async admin => {
   });
 
   admin.get('/me', async req => ({ user: userOf(req) }));
+
+  // Support chats: anyone who works with orders reads them; replying needs full order access.
+  admin.register(async a => {
+    a.addHook('preHandler', async req => need(req, req.method === 'GET' ? 1 : 2, 'orders'));
+    registerSupportAdmin(a);
+  });
+  // Promo codes, cashback, banners and broadcasts are money decisions: owner only.
+  admin.register(async a => {
+    a.addHook('preHandler', async req => ownerOnly(req));
+    registerMarketingAdmin(a);
+  });
 
   // Arden integration key (owner only)
   partnerAdmin(admin, ownerOnly);
@@ -366,7 +391,7 @@ app.register(async admin => {
     const { q } = req.query as { q?: string };
     const t = (q ?? '').trim(), d = t.replace(/\D/g, '');
     const rows = all<Row>(
-      `SELECT c.id, c.name, c.phone, c.phone2, c.created_at createdAt,
+      `SELECT c.id, c.name, c.phone, c.phone2, c.points, c.created_at createdAt,
               COUNT(o.id) orders, COALESCE(SUM(CASE WHEN o.status = 'delivered' THEN o.total END),0) spent, MAX(o.created_at) lastOrder
        FROM customers c LEFT JOIN orders o ON o.customer_id = c.id
        ${t ? `WHERE c.name LIKE ?${d ? ' OR c.phone LIKE ?' : ''}` : ''}
