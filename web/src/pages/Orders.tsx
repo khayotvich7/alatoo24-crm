@@ -1,53 +1,74 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { del, FLOW, money, type Order, type OrderRow, patch, STATUS, type Status, when } from '../api';
 import { Badge, Confirm, Drawer, Empty, Icon, LiveDot, useCan, useLive, useLoad, useMe, useToast } from '../ui';
 import { MetalButton } from '@/components/ui/metal-button';
 
-const STATUS_OPTS: (Status | 'consult')[] = ['consult', 'new', 'checking', 'confirmed', 'ready', 'problem', 'delivered', 'cancelled'];
+// The four statuses the team works with; the rest stay reachable through "Hammasi".
+const STATUS_OPTS = [
+  { s: 'ready', label: "Yo'lda", icon: 'truck', tone: 'amber' },
+  { s: 'problem', label: 'Muammoli', icon: 'alert', tone: 'red' },
+  { s: 'delivered', label: 'Yetkazildi', icon: 'check', tone: 'green' },
+  { s: 'cancelled', label: 'Otkaz', icon: 'ban', tone: 'gray' },
+] as const;
 type Filters = { q: string; status: string; region: string; product: string; from: string; to: string; dfrom: string; dto: string };
 const NO_FILTERS: Filters = { q: '', status: '', region: '', product: '', from: '', to: '', dfrom: '', dto: '' };
-// Shown for completeness but switched off: orders have no country, responsible person or courier yet.
+// Shown for completeness but switched off: orders have no country or courier yet.
 const MISSING = "Bazada hali bu ma'lumot yo'q";
 
+const Pick = ({ icon, label, value, onChange, children, off }: { icon: string; label: string; value?: string; onChange?: (v: string) => void; children: React.ReactNode; off?: boolean }) => (
+  <label className={`fp-field${value ? ' on' : ''}${off ? ' off' : ''}`} title={off ? MISSING : undefined}>
+    <span className="fp-lbl">{label}</span>
+    <span className="fp-box"><Icon name={icon} size={16} /><select value={value ?? ''} disabled={off} onChange={e => onChange?.(e.target.value)}>{children}</select></span>
+  </label>
+);
+
+const Range = ({ label, from, to, onFrom, onTo }: { label: string; from: string; to: string; onFrom: (v: string) => void; onTo: (v: string) => void }) => (
+  <div className={`fp-field fp-range${from || to ? ' on' : ''}`}>
+    <span className="fp-lbl">{label}</span>
+    <span className="fp-box">
+      <Icon name="clock" size={16} />
+      <input type="date" value={from} max={to || undefined} onChange={e => onFrom(e.target.value)} aria-label={`${label}: dan`} />
+      <i>–</i>
+      <input type="date" value={to} min={from || undefined} onChange={e => onTo(e.target.value)} aria-label={`${label}: gacha`} />
+    </span>
+  </div>
+);
+
 /** One filter panel above the orders table; every field narrows the list together with the others. */
-function FilterPanel({ f, set, counts }: { f: Filters; set: (p: Partial<Filters>) => void; counts?: Record<string, number> }) {
+function FilterPanel({ f, set, counts, found }: { f: Filters; set: (p: Partial<Filters>) => void; counts?: Record<string, number>; found?: number }) {
   const opts = useLoad<{ regions: string[]; products: { id: number; name: string }[] }>('/api/admin/orders/filters');
-  const dirty = (Object.keys(NO_FILTERS) as (keyof Filters)[]).some(k => f[k] !== '');
-  const label = (s: Status | 'consult') => (s === 'consult' ? 'Maslahat kerak' : STATUS[s].label);
-  const n = (k: string) => (counts ? ` (${counts[k] ?? 0})` : '');
+  const active = (Object.keys(NO_FILTERS) as (keyof Filters)[]).filter(k => f[k] !== '').length;
   return (
     <div className="card fpanel">
-      <div className="fp-row1">
-        <div className="search"><Icon name="search" size={17} /><input className="input" value={f.q} onChange={e => set({ q: e.target.value })} placeholder="Mijoz, telefon, ID yoki manzil bo'yicha qidirish" /></div>
-        <select className="select" disabled title={MISSING}><option>Barcha davlat</option></select>
-        <select className="select" value={f.status} onChange={e => set({ status: e.target.value })}>
-          <option value="">Barcha status{n('all')}</option>
-          {STATUS_OPTS.map(s => <option key={s} value={s}>{label(s)}{n(s)}</option>)}
-        </select>
-        <button className="fp-clear" disabled={!dirty} onClick={() => set(NO_FILTERS)}><Icon name="x" size={15} />Tozalash</button>
+      <div className="fp-top">
+        <div className="fp-search"><Icon name="search" size={18} /><input value={f.q} onChange={e => set({ q: e.target.value })} placeholder="Mijoz, telefon, ID yoki manzil bo'yicha qidirish" />{f.q ? <button aria-label="Tozalash" onClick={() => set({ q: '' })}><Icon name="x" size={15} /></button> : null}</div>
+        <button className="fp-clear" disabled={!active} onClick={() => set(NO_FILTERS)}><Icon name="x" size={15} />Tozalash{active ? <b>{active}</b> : null}</button>
       </div>
-      <div className="fp-row2">
-        <label><span>Mas'ul shaxs</span><select className="select" disabled title={MISSING}><option>Barcha mas'ul</option></select></label>
-        <label><span>Hudud</span>
-          <select className="select" value={f.region} onChange={e => set({ region: e.target.value })}>
-            <option value="">Barcha hudud</option>
-            {opts.data?.regions.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
-        </label>
-        <label><span>Mahsulot</span>
-          <select className="select" value={f.product} onChange={e => set({ product: e.target.value })}>
-            <option value="">Barcha mahsulot</option>
-            {opts.data?.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </label>
-        <label><span>Kuryer</span><select className="select" disabled title={MISSING}><option>Barcha kuryer</option></select></label>
-        <div className="fp-range"><span>Zakaz sanasi (dan – gacha)</span>
-          <div><input className="input" type="date" value={f.from} max={f.to || undefined} onChange={e => set({ from: e.target.value })} /><i>–</i><input className="input" type="date" value={f.to} min={f.from || undefined} onChange={e => set({ to: e.target.value })} /></div>
-        </div>
-        <div className="fp-range"><span>Yetkazilgan sana (dan – gacha)</span>
-          <div><input className="input" type="date" value={f.dfrom} max={f.dto || undefined} onChange={e => set({ dfrom: e.target.value })} /><i>–</i><input className="input" type="date" value={f.dto} min={f.dfrom || undefined} onChange={e => set({ dto: e.target.value })} /></div>
-        </div>
+
+      <div className="fp-status">
+        <button className={`fp-pill${f.status === '' ? ' on' : ''}`} onClick={() => set({ status: '' })}>Hammasi<b>{counts?.all ?? '…'}</b></button>
+        {STATUS_OPTS.map(o => (
+          <button key={o.s} className={`fp-pill t-${o.tone}${f.status === o.s ? ' on' : ''}`} onClick={() => set({ status: f.status === o.s ? '' : o.s })}>
+            <Icon name={o.icon} size={15} />{o.label}<b>{counts?.[o.s] ?? 0}</b>
+          </button>
+        ))}
+        {found !== undefined ? <span className="fp-found">{found} ta topildi</span> : null}
+      </div>
+
+      <div className="fp-grid">
+        <Pick icon="pin" label="Hudud" value={f.region} onChange={v => set({ region: v })}>
+          <option value="">Barcha hudud</option>
+          {opts.data?.regions.map(r => <option key={r} value={r}>{r}</option>)}
+        </Pick>
+        <Pick icon="box" label="Mahsulot" value={f.product} onChange={v => set({ product: v })}>
+          <option value="">Barcha mahsulot</option>
+          {opts.data?.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </Pick>
+        <Pick icon="truck" label="Kuryer" off><option>Barcha kuryer</option></Pick>
+        <Pick icon="home" label="Davlat" off><option>O'zbekiston</option></Pick>
+        <Range label="Zakaz sanasi" from={f.from} to={f.to} onFrom={v => set({ from: v })} onTo={v => set({ to: v })} />
+        <Range label="Yetkazilgan sana" from={f.dfrom} to={f.dto} onFrom={v => set({ dfrom: v })} onTo={v => set({ dto: v })} />
       </div>
     </div>
   );
@@ -127,10 +148,9 @@ export default function Orders({ arg }: { arg: string | null }) {
       <div className="head">
         <h1>Buyurtmalar</h1>
         <LiveDot />
-        {data ? <span className="muted small">{data.total} ta buyurtma</span> : null}
       </div>
 
-      <FilterPanel f={f} set={set} counts={data?.counts} />
+      <FilterPanel f={f} set={set} counts={data?.counts} found={data?.total} />
 
       <div className="card flat">
         {error ? <Empty title="Yuklab bo'lmadi" text={error} /> : !data ? <div className="empty">Yuklanmoqda…</div> : !data.orders.length ? (

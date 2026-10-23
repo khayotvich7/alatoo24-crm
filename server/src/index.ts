@@ -342,14 +342,15 @@ app.register(async admin => {
     counts.all = Object.entries(counts).filter(([k]) => k !== 'consult').reduce((a, [, n]) => a + n, 0);
     return { total, page: p, pages: Math.max(1, Math.ceil(total / size)), orders: rows, counts };
   });
-  // Choices for the filter dropdowns, taken from the orders themselves.
+  // Choices for the filter dropdowns: the regions the app offers at checkout (12 viloyat,
+  // Toshkent shahri and Qoraqalpog'iston, spelled exactly as orders store them) and the product cards in the catalogue.
+  const REGIONS = ['Toshkent shahri', 'Toshkent viloyati', 'Andijon', 'Buxoro', "Farg'ona", 'Jizzax', 'Xorazm',
+    'Namangan', 'Navoiy', 'Qashqadaryo', "Qoraqalpog'iston", 'Samarqand', 'Sirdaryo', 'Surxondaryo'];
   admin.get('/orders/filters', async req => {
     need(req, 1, 'orders');
     return {
-      regions: all<{ region: string }>("SELECT DISTINCT region FROM orders WHERE region != '' ORDER BY region").map(r => r.region),
-      products: all<{ id: number; name: string }>(
-        `SELECT i.product_id id, COALESCE(p.name, MAX(i.name)) name FROM order_items i LEFT JOIN products p ON p.id = i.product_id
-         GROUP BY i.product_id ORDER BY name`),
+      regions: REGIONS,
+      products: all<{ id: number; name: string }>('SELECT id, name FROM products WHERE deleted_at IS NULL ORDER BY sort, id'),
     };
   });
   admin.get('/orders/:id', async req => {
