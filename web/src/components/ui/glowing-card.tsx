@@ -13,6 +13,7 @@ export function GlowingCard({ children, className, ...rest }: GlowingCardProps) 
       <span className="gcard-beam" aria-hidden />
       <span className="gcard-lines" aria-hidden />
       <span className="gcard-spark" aria-hidden />
+      <span className="gcard-shine" aria-hidden />
       <div className="gcard-body">{children}</div>
     </div>
   );

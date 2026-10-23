@@ -678,3 +678,40 @@ input[type='checkbox'] { accent-color: var(--brand); width: 18px; height: 18px; 
   .fp-grid { grid-template-columns: 1fr 1fr; }
   .fp-range { grid-column: 1 / -1; }
 }
+
+/* ---------- 21st.dev-style effects (chosen by the owner: 1, 2, 6, 7, 9, 11) ---------- */
+@property --fxa { syntax: "<angle>"; initial-value: 0deg; inherits: false; }
+@keyframes fxspin { to { --fxa: 360deg; } }
+/* 1 contour-line background (TopoBg) and 2 Jade Sky behind the sign-in card */
+.topo-bg { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; pointer-events: none; }
+.app-bg.dim { opacity: .55; }
+.jade-bg { position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(40% 55% at 25% 25%, #8fd3ae, transparent 70%), radial-gradient(45% 55% at 78% 62%, #f6f1e7, transparent 70%),
+    radial-gradient(40% 50% at 18% 88%, #c9e6a5, transparent 70%), radial-gradient(35% 45% at 85% 15%, #b7d98e, transparent 70%), #d7ece6; }
+/* 6 shine border: a green-gold light circling the headline card */
+.gcard-shine { position: absolute; inset: 0; border-radius: inherit; padding: 2px; pointer-events: none; z-index: 3;
+  background: conic-gradient(from var(--fxa), transparent 0 58%, #2f7a57, #e3b25a, #f28c38, transparent 86%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: fxspin 4s linear infinite; }
+/* 7 border beam on new orders */
+.fx-beam { position: relative; overflow: hidden; }
+.fx-beam::after { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: conic-gradient(from var(--fxa), transparent 0 78%, #8fd3ae 87%, #e3b25a 94%, transparent);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  animation: fxspin 3.5s linear infinite; }
+/* 9 page titles come out of a blur */
+.head h1 { animation: fxunblur .9s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes fxunblur { from { opacity: 0; filter: blur(10px); } to { opacity: 1; filter: none; } }
+/* 11 status icons that move: on the way, delivered, new order, waiting */
+@keyframes fxdrive { 50% { transform: translateX(2px); } }
+@keyframes fxpop { 0%, 70%, 100% { transform: scale(1); } 80% { transform: scale(1.22); } 90% { transform: scale(.95); } }
+@keyframes fxring { 0%, 60%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(14deg); } 20%, 40% { transform: rotate(-14deg); } }
+@keyframes fxturn { to { transform: rotate(360deg); } }
+:is(.stat .ic, .qs-btn) svg[data-i="truck"] { animation: fxdrive 1.4s ease-in-out infinite; }
+:is(.stat .ic, .qs-btn) svg[data-i="check"] { animation: fxpop 2.4s ease infinite; }
+:is(.stat .ic, .qs-btn) svg[data-i="alert"] { transform-origin: 50% 20%; animation: fxring 2.2s ease infinite; }
+.stat .ic svg[data-i="orders"] { transform-origin: 50% 15%; animation: fxring 2.6s ease infinite; }
+.qs-btn svg[data-i="refresh"] { animation: fxturn 2.4s linear infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .gcard-shine, .fx-beam::after, .head h1, .stat .ic svg, .qs-btn svg { animation: none !important; }
+}

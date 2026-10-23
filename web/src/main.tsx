@@ -13,6 +13,7 @@ import Login from './pages/Login';
 import Orders from './pages/Orders';
 import Products, { CreateProduct } from './pages/Products';
 import Velaris from '@/components/ui/velaris';
+import TopoBg from '@/components/ui/topo-bg';
 import { useSpotlight } from '@/components/ui/spotlight-card';
 import { TextShimmer } from '@/components/ui/text-shimmer';
 import './styles.css';
@@ -80,7 +81,8 @@ function Shell() {
   }, [authed]);
 
   // The animated background stays on the login page in both modes (its card is designed for it).
-  const bg = !authed || theme === 'dark' ? <Velaris bg="#030806" colors={BG_COLORS} speed={1.2} grain={0.35} height="100%" className="app-bg" /> : null;
+  const bg = !authed ? <div className="jade-bg" aria-hidden />
+    : <>{theme === 'dark' ? <Velaris bg="#030806" colors={BG_COLORS} speed={1.2} grain={0.35} height="100%" className="app-bg dim" /> : null}<TopoBg dark={theme === 'dark'} /></>;
   if (!authed) return <>{bg}<Login onDone={() => setAuthed(true)} /></>;
   if (!me) return <>{bg}<div className="boot"><img src="/favicon.png" alt="" /></div></>;
   const pages = PAGES.filter(p => allowed(me, p));

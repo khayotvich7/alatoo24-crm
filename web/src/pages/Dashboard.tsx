@@ -81,7 +81,7 @@ export default function Dashboard(_: { arg: string | null }) {
           {d.newOrders.length ? (
             <div className="stack" style={{ gap: 8 }}>
               {d.newOrders.map(o => (
-                <a key={o.id} href={`#orders/${o.id}`} className="row between" style={{ textDecoration: 'none', color: 'inherit', padding: '12px 14px', borderRadius: 16, background: 'var(--surface)', border: '1px solid var(--line)' }}>
+                <a key={o.id} href={`#orders/${o.id}`} className="row between fx-beam" style={{ textDecoration: 'none', color: 'inherit', padding: '12px 14px', borderRadius: 16, background: 'var(--surface)', border: '1px solid var(--line)' }}>
                   <div>
                     <div style={{ fontWeight: 800 }}>№ {o.no} · {o.name}</div>
                     <div className="muted small">+998 {fmtPhone(o.phone)} · {when(o.createdAt)}</div>
