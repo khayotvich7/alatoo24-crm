@@ -1,10 +1,57 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { type Dashboard, del, FLOW, money, type Order, type OrderRow, patch, STATUS, type Status, when } from '../api';
-import { Badge, Confirm, Drawer, Empty, Icon, LiveDot, Search, useCan, useLive, useLoad, useMe, useToast } from '../ui';
+import { del, FLOW, money, type Order, type OrderRow, patch, STATUS, type Status, when } from '../api';
+import { Badge, Confirm, Drawer, Empty, Icon, LiveDot, useCan, useLive, useLoad, useMe, useToast } from '../ui';
 import { MetalButton } from '@/components/ui/metal-button';
 
-const FILTERS: (Status | 'all' | 'consult')[] = ['all', 'consult', 'new', 'checking', 'confirmed', 'ready', 'problem', 'delivered', 'cancelled'];
+const STATUS_OPTS: (Status | 'consult')[] = ['consult', 'new', 'checking', 'confirmed', 'ready', 'problem', 'delivered', 'cancelled'];
+type Filters = { q: string; status: string; region: string; product: string; from: string; to: string; dfrom: string; dto: string };
+const NO_FILTERS: Filters = { q: '', status: '', region: '', product: '', from: '', to: '', dfrom: '', dto: '' };
+// Shown for completeness but switched off: orders have no country, responsible person or courier yet.
+const MISSING = "Bazada hali bu ma'lumot yo'q";
+
+/** One filter panel above the orders table; every field narrows the list together with the others. */
+function FilterPanel({ f, set, counts }: { f: Filters; set: (p: Partial<Filters>) => void; counts?: Record<string, number> }) {
+  const opts = useLoad<{ regions: string[]; products: { id: number; name: string }[] }>('/api/admin/orders/filters');
+  const dirty = (Object.keys(NO_FILTERS) as (keyof Filters)[]).some(k => f[k] !== '');
+  const label = (s: Status | 'consult') => (s === 'consult' ? 'Maslahat kerak' : STATUS[s].label);
+  const n = (k: string) => (counts ? ` (${counts[k] ?? 0})` : '');
+  return (
+    <div className="card fpanel">
+      <div className="fp-row1">
+        <div className="search"><Icon name="search" size={17} /><input className="input" value={f.q} onChange={e => set({ q: e.target.value })} placeholder="Mijoz, telefon, ID yoki manzil bo'yicha qidirish" /></div>
+        <select className="select" disabled title={MISSING}><option>Barcha davlat</option></select>
+        <select className="select" value={f.status} onChange={e => set({ status: e.target.value })}>
+          <option value="">Barcha status{n('all')}</option>
+          {STATUS_OPTS.map(s => <option key={s} value={s}>{label(s)}{n(s)}</option>)}
+        </select>
+        <button className="fp-clear" disabled={!dirty} onClick={() => set(NO_FILTERS)}><Icon name="x" size={15} />Tozalash</button>
+      </div>
+      <div className="fp-row2">
+        <label><span>Mas'ul shaxs</span><select className="select" disabled title={MISSING}><option>Barcha mas'ul</option></select></label>
+        <label><span>Hudud</span>
+          <select className="select" value={f.region} onChange={e => set({ region: e.target.value })}>
+            <option value="">Barcha hudud</option>
+            {opts.data?.regions.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        </label>
+        <label><span>Mahsulot</span>
+          <select className="select" value={f.product} onChange={e => set({ product: e.target.value })}>
+            <option value="">Barcha mahsulot</option>
+            {opts.data?.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+        <label><span>Kuryer</span><select className="select" disabled title={MISSING}><option>Barcha kuryer</option></select></label>
+        <div className="fp-range"><span>Zakaz sanasi (dan – gacha)</span>
+          <div><input className="input" type="date" value={f.from} max={f.to || undefined} onChange={e => set({ from: e.target.value })} /><i>–</i><input className="input" type="date" value={f.to} min={f.from || undefined} onChange={e => set({ to: e.target.value })} /></div>
+        </div>
+        <div className="fp-range"><span>Yetkazilgan sana (dan – gacha)</span>
+          <div><input className="input" type="date" value={f.dfrom} max={f.dto || undefined} onChange={e => set({ dfrom: e.target.value })} /><i>–</i><input className="input" type="date" value={f.dto} min={f.dfrom || undefined} onChange={e => set({ dto: e.target.value })} /></div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const ConsultBadge = ({ c }: { c: string }) => c === 'needed' ? <span className="badge t-gold" title="Mutaxassis maslahati kerak">🩺 Maslahat kerak</span>
   : c === 'approved' ? <span className="badge t-green">🩺 Ruxsat</span> : c === 'rejected' ? <span className="badge t-red">🩺 Rad</span> : null;
@@ -57,42 +104,37 @@ function QuickStatus({ o, onDone }: { o: OrderRow; onDone: () => void }) {
 }
 
 export default function Orders({ arg }: { arg: string | null }) {
-  const [status, setStatus] = useState<Status | 'all' | 'consult'>('all');
-  const [q, setQ] = useState('');
+  const [f, setF] = useState<Filters>(NO_FILTERS);
   const [debounced, setDebounced] = useState('');
   const [page, setPage] = useState(1);
-  useEffect(() => { const t = setTimeout(() => { setDebounced(q); setPage(1); }, 300); return () => clearTimeout(t); }, [q]);
+  const set = (p: Partial<Filters>) => { setF(x => ({ ...x, ...p })); setPage(1); };
+  useEffect(() => { const t = setTimeout(() => setDebounced(f.q), 300); return () => clearTimeout(t); }, [f.q]);
 
-  const qs = new URLSearchParams({ page: String(page), ...(status !== 'all' ? { status } : {}), ...(debounced ? { q: debounced } : {}) });
-  const { data, error, reload } = useLoad<{ total: number; pages: number; orders: OrderRow[] }>(`/api/admin/orders?${qs}`);
-  const counts = useLoad<Dashboard>('/api/admin/dashboard');
-  useLive(() => { reload(); counts.reload(); });
+  // Search waits 300 ms after typing; every other filter applies at once.
+  const qs = new URLSearchParams({ page: String(page), ...Object.fromEntries(Object.entries({ ...f, q: debounced }).filter(([, v]) => v)) });
+  const { data, error, reload } = useLoad<{ total: number; pages: number; orders: OrderRow[]; counts: Record<string, number> }>(`/api/admin/orders?${qs}`);
+  const counts = { reload };
+  useLive(reload);
+  const filtered = (Object.keys(NO_FILTERS) as (keyof Filters)[]).some(k => f[k] !== '');
 
   const openId = arg ? Number(arg) : null;
   const open = (id: number) => { location.hash = `orders/${id}`; };
   const close = () => { location.hash = 'orders'; };
   const edit = useCan()('orders', 2);
-  const total = Object.values(counts.data?.byStatus ?? {}).reduce((a, b) => a + (b ?? 0), 0);
 
   return (
     <div className="stack">
       <div className="head">
         <h1>Buyurtmalar</h1>
         <LiveDot />
-        <div className="actions" style={{ minWidth: 'min(320px, 100%)' }}><Search value={q} onChange={setQ} placeholder="Ism, telefon, № yoki manzil" /></div>
+        {data ? <span className="muted small">{data.total} ta buyurtma</span> : null}
       </div>
 
-      <div className="chips">
-        {FILTERS.map(f => (
-          <button key={f} className={`chip${f === status ? ' on' : ''}`} onClick={() => { setStatus(f); setPage(1); }}>
-            {f === 'all' ? 'Hammasi' : f === 'consult' ? '🩺 Maslahat kerak' : STATUS[f].label}<b>{f === 'all' ? total : f === 'consult' ? counts.data?.consultNeeded ?? 0 : counts.data?.byStatus[f] ?? 0}</b>
-          </button>
-        ))}
-      </div>
+      <FilterPanel f={f} set={set} counts={data?.counts} />
 
       <div className="card flat">
         {error ? <Empty title="Yuklab bo'lmadi" text={error} /> : !data ? <div className="empty">Yuklanmoqda…</div> : !data.orders.length ? (
-          <Empty title="Buyurtma topilmadi" text={debounced || status !== 'all' ? "Filtrni o'zgartirib ko'ring." : "Ilovadan birinchi buyurtma tushishi bilan shu yerda ko'rinadi."} />
+          <Empty title="Buyurtma topilmadi" text={filtered ? "Filtrni o'zgartirib ko'ring." : "Ilovadan birinchi buyurtma tushishi bilan shu yerda ko'rinadi."} />
         ) : (
           <>
             <table className="table m-collapse">

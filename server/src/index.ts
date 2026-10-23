@@ -299,26 +299,58 @@ app.register(async admin => {
   });
 
   // Orders
+  // Order list filters. Dates come from the CRM as local days (Tashkent, UTC+5); the database stores UTC.
+  type OrderQuery = { status?: string; q?: string; page?: string; region?: string; product?: string; from?: string; to?: string; dfrom?: string; dto?: string };
+  const day = (s?: string) => (s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null);
+  function orderWhere(f: OrderQuery, withStatus: boolean) {
+    const where: string[] = [], params: unknown[] = [];
+    if (withStatus) {
+      if (f.status === 'consult') where.push("o.consult = 'needed'");
+      else if (f.status && STATUSES.includes(f.status as Status)) { where.push('o.status = ?'); params.push(f.status); }
+    }
+    if (f.q?.trim()) {
+      const t = f.q.trim(), d = t.replace(/\D/g, '');
+      where.push(`(o.name LIKE ? OR o.street LIKE ? OR o.region LIKE ?${d ? ' OR o.phone LIKE ? OR o.phone2 LIKE ? OR CAST(o.no AS TEXT) LIKE ?' : ''})`);
+      params.push(`%${t}%`, `%${t}%`, `%${t}%`, ...(d ? [`%${d}%`, `%${d}%`, `%${d}%`] : []));
+    }
+    if (f.region) { where.push('o.region = ?'); params.push(f.region); }
+    if (Number(f.product)) { where.push('EXISTS (SELECT 1 FROM order_items i WHERE i.order_id = o.id AND i.product_id = ?)'); params.push(Number(f.product)); }
+    const range = (col: string, from?: string, to?: string) => {
+      if (day(from)) { where.push(`${col} >= datetime(?, '-5 hours')`); params.push(day(from)); }
+      if (day(to)) { where.push(`${col} < datetime(?, '+1 day', '-5 hours')`); params.push(day(to)); }
+    };
+    range('o.created_at', f.from, f.to);
+    range('o.delivered_at', f.dfrom, f.dto);
+    return { w: where.length ? `WHERE ${where.join(' AND ')}` : '', params };
+  }
   admin.get('/orders', async req => {
     need(req, 1, 'orders');
-    const { status, q, page } = req.query as { status?: string; q?: string; page?: string };
-    const where: string[] = [], params: unknown[] = [];
-    if (status === 'consult') where.push("consult = 'needed'");
-    else if (status && STATUSES.includes(status as Status)) { where.push('status = ?'); params.push(status); }
-    if (q?.trim()) {
-      const t = q.trim(), d = t.replace(/\D/g, '');
-      where.push(`(name LIKE ? OR street LIKE ?${d ? ' OR phone LIKE ? OR phone2 LIKE ? OR CAST(no AS TEXT) LIKE ?' : ''})`);
-      params.push(`%${t}%`, `%${t}%`, ...(d ? [`%${d}%`, `%${d}%`, `%${d}%`] : []));
-    }
-    const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const size = 30, p = Math.max(1, Number(page) || 1);
-    const total = one<{ n: number }>(`SELECT COUNT(*) n FROM orders ${w}`, ...params)!.n;
+    const f = req.query as OrderQuery;
+    const { w, params } = orderWhere(f, true);
+    const size = 30, p = Math.max(1, Number(f.page) || 1);
+    const total = one<{ n: number }>(`SELECT COUNT(*) n FROM orders o ${w}`, ...params)!.n;
     const rows = all<Row>(
       `SELECT o.id, o.no, o.status, o.consult, o.name, o.phone, o.phone2, o.region, o.street, o.total, o.created_at createdAt,
               (SELECT SUM(qty) FROM order_items WHERE order_id = o.id) items
        FROM orders o ${w} ORDER BY o.id DESC LIMIT ${size} OFFSET ${(p - 1) * size}`, ...params,
     ).map(r => ({ ...r, phone: fmtPhone(String(r.phone)), phone2: fmtPhone(String(r.phone2)) }));
-    return { total, page: p, pages: Math.max(1, Math.ceil(total / size)), orders: rows };
+    // Counts per status under every other filter, for the status dropdown.
+    const base = orderWhere(f, false);
+    const counts: Record<string, number> = Object.fromEntries(all<{ status: string; n: number }>(
+      `SELECT o.status, COUNT(*) n FROM orders o ${base.w} GROUP BY o.status`, ...base.params).map(r => [r.status, r.n]));
+    counts.consult = one<{ n: number }>(`SELECT COUNT(*) n FROM orders o ${base.w ? base.w + ' AND' : 'WHERE'} o.consult = 'needed'`, ...base.params)!.n;
+    counts.all = Object.entries(counts).filter(([k]) => k !== 'consult').reduce((a, [, n]) => a + n, 0);
+    return { total, page: p, pages: Math.max(1, Math.ceil(total / size)), orders: rows, counts };
+  });
+  // Choices for the filter dropdowns, taken from the orders themselves.
+  admin.get('/orders/filters', async req => {
+    need(req, 1, 'orders');
+    return {
+      regions: all<{ region: string }>("SELECT DISTINCT region FROM orders WHERE region != '' ORDER BY region").map(r => r.region),
+      products: all<{ id: number; name: string }>(
+        `SELECT i.product_id id, COALESCE(p.name, MAX(i.name)) name FROM order_items i LEFT JOIN products p ON p.id = i.product_id
+         GROUP BY i.product_id ORDER BY name`),
+    };
   });
   admin.get('/orders/:id', async req => {
     need(req, 1, 'orders');
