@@ -5,7 +5,7 @@ import { one } from './db.ts';
 const MESSAGES: Record<'placed' | 'courier' | 'delivered', (no: number) => { title: string; body: string }> = {
   placed: no => ({ title: 'Buyurtma rasmiylashtirildi ✅', body: `№ ${no} qabul qilindi. Operator tez orada qo'ng'iroq qiladi.` }),
   courier: no => ({ title: 'Buyurtma kuryerda 🚚', body: `№ ${no} yo'lda. To'lov qabul qilganda, naqd.` }),
-  delivered: no => ({ title: 'Yetkazildi 🎉', body: `№ ${no} yetkazildi. Xaridingiz uchun rahmat!` }),
+  delivered: no => ({ title: 'Yetkazildi 🎉', body: `№ ${no} yetkazildi. Xaridingiz uchun rahmat! Mahsulotga baho bering ⭐` }),
 };
 
 export const validPushToken = (t: unknown) =>

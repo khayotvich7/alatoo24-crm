@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { api, type Area, getToken, type Me, setToken, setUnauthorizedHandler } from './api';
 import Analytics from './pages/Analytics';
 import Chats from './pages/Chats';
+import Reviews from './pages/Reviews';
 import Marketing from './pages/Marketing';
 import Finance from './pages/Finance';
 import Settings from './pages/Settings';
@@ -22,6 +23,7 @@ const PAGES = [
   { id: 'home', label: 'Bosh panel', short: 'Panel', icon: 'home', el: Dashboard, sec: 'Savdo' },
   { id: 'orders', label: 'Buyurtmalar', short: 'Buyurtma', icon: 'orders', el: Orders, sec: '', rule: { area: 'orders' } as Rule },
   { id: 'chats', label: 'Chatlar', short: 'Chat', icon: 'chat', el: Chats, sec: '', rule: { area: 'orders' } as Rule },
+  { id: 'reviews', label: 'Sharhlar', short: 'Baho', icon: 'star', el: Reviews, sec: '', rule: { area: 'orders' } as Rule },
   { id: 'products', label: 'Tovarlar', short: 'Tovar', icon: 'box', el: Products, sec: 'Katalog', rule: { area: 'products' } as Rule },
   { id: 'create', label: 'Yangi tovar', short: 'Yaratish', icon: 'plus', el: CreateProduct, sec: '', rule: { area: 'products', level: 2 } as Rule },
   { id: 'customers', label: 'Mijozlar', short: 'Mijoz', icon: 'users', el: Customers, sec: 'Tahlil', rule: { area: 'customers' } as Rule },

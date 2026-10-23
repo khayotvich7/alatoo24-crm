@@ -20,6 +20,7 @@ import { pushOrder } from './push.ts';
 import { HOTLINE, registerSupport, registerSupportAdmin } from './support.ts';
 import { registerMarketing, registerMarketingAdmin } from './marketing-routes.ts';
 import { registerLegal } from './legal.ts';
+import { ratingMap, registerReviews, registerReviewsAdmin } from './reviews.ts';
 import { BACKUP_DIR, backupNow, keepAlive, listBackups } from './uptime.ts';
 
 // ---- who is calling, and what they may do ----
@@ -63,8 +64,10 @@ registerPipeline(app);
 app.get('/api/conditions', async () => ({ notAllowed: CONDITIONS.notAllowed, minAge: CONDITIONS.minAge }));
 
 app.get('/api/catalog', async () => {
-  const products = all('SELECT * FROM products WHERE active = 1 ORDER BY sort, id').map(p => productOut(p));
-  return { products, categories: [...new Set(products.map(p => String(p.category)).filter(Boolean))] };
+  const stars = ratingMap();
+  const rows = all('SELECT * FROM products WHERE active = 1 ORDER BY sort, id');
+  const products = rows.map(p => Object.assign(productOut(p), stars.get(Number(p.id)) ?? { rating: 0, reviews: 0 }));
+  return { products, categories: [...new Set(rows.map(p => String(p.category)).filter(Boolean))] };
 });
 
 app.post('/api/orders', async (req, reply) => {
@@ -100,6 +103,7 @@ app.post('/api/orders/:no/cancel', async req => {
 registerSupport(app);
 registerMarketing(app);
 registerLegal(app);
+registerReviews(app);
 
 // ---------------- CRM API ----------------
 
@@ -125,6 +129,7 @@ app.register(async admin => {
   admin.register(async a => {
     a.addHook('preHandler', async req => need(req, req.method === 'GET' ? 1 : 2, 'orders'));
     registerSupportAdmin(a);
+    registerReviewsAdmin(a);
   });
   // Promo codes, cashback, banners and broadcasts are money decisions: owner only.
   admin.register(async a => {
