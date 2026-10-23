@@ -13,7 +13,7 @@ const STATUS_OPTS = [
 ] as const;
 type Filters = { q: string; status: string; region: string; product: string; from: string; to: string; dfrom: string; dto: string };
 const NO_FILTERS: Filters = { q: '', status: '', region: '', product: '', from: '', to: '', dfrom: '', dto: '' };
-// Shown for completeness but switched off: orders have no country or courier yet.
+// Tooltip for a field whose data the orders do not record.
 const MISSING = "Bazada hali bu ma'lumot yo'q";
 
 const Pick = ({ icon, label, value, onChange, children, off }: { icon: string; label: string; value?: string; onChange?: (v: string) => void; children: React.ReactNode; off?: boolean }) => (
@@ -65,8 +65,6 @@ function FilterPanel({ f, set, counts, found }: { f: Filters; set: (p: Partial<F
           <option value="">Barcha mahsulot</option>
           {opts.data?.products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </Pick>
-        <Pick icon="truck" label="Kuryer" off><option>Barcha kuryer</option></Pick>
-        <Pick icon="home" label="Davlat" off><option>O'zbekiston</option></Pick>
         <Range label="Zakaz sanasi" from={f.from} to={f.to} onFrom={v => set({ from: v })} onTo={v => set({ to: v })} />
         <Range label="Yetkazilgan sana" from={f.dfrom} to={f.dto} onFrom={v => set({ dfrom: v })} onTo={v => set({ dto: v })} />
       </div>
