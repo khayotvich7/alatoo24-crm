@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { type Dashboard, del, FLOW, money, type Order, type OrderRow, patch, STATUS, type Status, when } from '../api';
 import { Badge, Confirm, Drawer, Empty, Icon, LiveDot, Search, useCan, useLive, useLoad, useMe, useToast } from '../ui';
 import { MetalButton } from '@/components/ui/metal-button';
@@ -7,6 +8,52 @@ const FILTERS: (Status | 'all' | 'consult')[] = ['all', 'consult', 'new', 'check
 
 const ConsultBadge = ({ c }: { c: string }) => c === 'needed' ? <span className="badge t-gold" title="Mutaxassis maslahati kerak">🩺 Maslahat kerak</span>
   : c === 'approved' ? <span className="badge t-green">🩺 Ruxsat</span> : c === 'rejected' ? <span className="badge t-red">🩺 Rad</span> : null;
+
+// Quick status from the list: one button at the end of the row, three choices, no need to open the order.
+const QUICK = [
+  { to: 'ready', label: "Yo'lda", icon: 'truck', tone: 'var(--amber)' },
+  { to: 'delivered', label: 'Yetkazildi', icon: 'check', tone: 'var(--ok)' },
+  { to: 'cancelled', label: 'Otkaz', icon: 'ban', tone: 'var(--sale)' },
+] as const;
+
+function QuickStatus({ o, onDone }: { o: OrderRow; onDone: () => void }) {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  useEffect(() => {
+    if (!at) return;
+    const close = () => setAt(null);
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('click', close); window.addEventListener('scroll', close, true); window.addEventListener('keydown', key);
+    return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true); window.removeEventListener('keydown', key); };
+  }, [at]);
+  const set = async (to: Status, label: string) => {
+    setAt(null);
+    if (to === o.status) return;
+    if (to === 'cancelled' && !confirm(`№ ${o.no} — otkaz qilinsinmi?`)) return;
+    setBusy(true);
+    try { await patch(`/api/admin/orders/${o.id}`, { status: to }); toast(`№ ${o.no}: ${label}`); onDone(); }
+    catch (e) { toast((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  return (
+    <>
+      <button className="qs-btn" title="Holatni o'zgartirish" aria-label="Holatni o'zgartirish" disabled={busy}
+        onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setAt(at ? null : { x: Math.min(r.right, window.innerWidth - 8), y: r.bottom + 6 }); }}>
+        <Icon name={o.status === 'ready' ? 'truck' : o.status === 'delivered' ? 'check' : o.status === 'cancelled' ? 'ban' : 'refresh'} size={17} />
+      </button>
+      {at ? createPortal(
+        <div className="qs-menu" style={{ top: Math.min(at.y, window.innerHeight - 170), left: at.x }} onClick={e => e.stopPropagation()}>
+          {QUICK.map(q => (
+            <button key={q.to} className={o.status === q.to ? 'on' : ''} onClick={() => set(q.to, q.label)}>
+              <span style={{ color: q.tone, display: 'inline-flex' }}><Icon name={q.icon} size={17} /></span>{q.label}
+            </button>
+          ))}
+        </div>, document.body,
+      ) : null}
+    </>
+  );
+}
 
 export default function Orders({ arg }: { arg: string | null }) {
   const [status, setStatus] = useState<Status | 'all' | 'consult'>('all');
@@ -23,6 +70,7 @@ export default function Orders({ arg }: { arg: string | null }) {
   const openId = arg ? Number(arg) : null;
   const open = (id: number) => { location.hash = `orders/${id}`; };
   const close = () => { location.hash = 'orders'; };
+  const edit = useCan()('orders', 2);
   const total = Object.values(counts.data?.byStatus ?? {}).reduce((a, b) => a + (b ?? 0), 0);
 
   return (
@@ -47,7 +95,7 @@ export default function Orders({ arg }: { arg: string | null }) {
         ) : (
           <>
             <table className="table m-collapse">
-              <thead><tr><th>№</th><th>Mijoz</th><th>Manzil</th><th>Holat</th><th className="r">Summa</th><th>Vaqt</th></tr></thead>
+              <thead><tr><th>№</th><th>Mijoz</th><th>Manzil</th><th>Holat</th><th className="r">Summa</th><th>Vaqt</th>{edit ? <th aria-label="Holat" /> : null}</tr></thead>
               <tbody>
                 {data.orders.map(o => (
                   <tr key={o.id} onClick={() => open(o.id)}>
@@ -57,6 +105,7 @@ export default function Orders({ arg }: { arg: string | null }) {
                     <td><div className="row" style={{ gap: 6, flexWrap: 'wrap' }}><Badge status={o.status} /><ConsultBadge c={o.consult} /></div></td>
                     <td className="r num" style={{ fontWeight: 800 }}>{money(o.total)}<div className="muted small">{o.items} ta</div></td>
                     <td className="muted small">{when(o.createdAt)}</td>
+                    {edit ? <td className="r" onClick={e => e.stopPropagation()}><QuickStatus o={o} onDone={() => { reload(); counts.reload(); }} /></td> : null}
                   </tr>
                 ))}
               </tbody>
@@ -64,7 +113,7 @@ export default function Orders({ arg }: { arg: string | null }) {
             <div className="list">
               {data.orders.map(o => (
                 <div key={o.id} className="item" onClick={() => open(o.id)}>
-                  <div className="row between"><b>№ {o.no} · {o.name}</b><Badge status={o.status} /></div>
+                  <div className="row between"><b>№ {o.no} · {o.name}</b><div className="row" style={{ gap: 8 }} onClick={e => e.stopPropagation()}><Badge status={o.status} />{edit ? <QuickStatus o={o} onDone={() => { reload(); counts.reload(); }} /> : null}</div></div>
                   <div className="row between" style={{ marginTop: 6 }}>
                     <span className="muted small">{o.region} · {when(o.createdAt)}</span>
                     <b className="num">{money(o.total)}</b>

@@ -611,3 +611,12 @@ input[type='checkbox'] { accent-color: var(--brand); width: 18px; height: 18px; 
   .back-link { display: inline-block; }
   .chat-msgs { max-height: none; }
 }
+
+/* ---------- quick status in the orders list ---------- */
+.qs-btn { width: 36px; height: 36px; border-radius: 12px; border: 1px solid var(--line-hi); background: var(--surface-hi); color: var(--ink2); display: inline-grid; place-items: center; cursor: pointer; transition: background .12s, color .12s; }
+.qs-btn:hover { background: var(--brand-soft); color: var(--brand); }
+.qs-btn:disabled { opacity: .5; cursor: wait; }
+.qs-menu { position: fixed; transform: translateX(-100%); z-index: 60; min-width: 170px; padding: 6px; border-radius: 16px; background: var(--glass); backdrop-filter: blur(18px); border: 1px solid var(--line-hi); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; }
+.qs-menu button { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 0; border-radius: 11px; background: transparent; color: var(--ink); font: 700 14px var(--body); cursor: pointer; text-align: left; }
+.qs-menu button:hover { background: var(--surface-hi); }
+.qs-menu button.on { background: var(--brand-soft); }
