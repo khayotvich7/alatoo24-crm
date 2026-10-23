@@ -9,7 +9,7 @@ export const UPLOAD_DIR = join(DATA_DIR, 'uploads');
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
 export const db = new DatabaseSync(join(DATA_DIR, 'alatoo.db'));
-db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON; PRAGMA busy_timeout = 5000; PRAGMA synchronous = NORMAL;');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS products (

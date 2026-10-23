@@ -3,7 +3,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyReply, type FastifyRequest } from 'fastify';
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { createReadStream, existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { type Area, cleanPerms, hashPassword, login, newApiKey, OWNER_LOGIN, PASSWORD_SOURCE, type User, verify } from './auth.ts';
@@ -20,6 +20,7 @@ import { pushOrder } from './push.ts';
 import { HOTLINE, registerSupport, registerSupportAdmin } from './support.ts';
 import { registerMarketing, registerMarketingAdmin } from './marketing-routes.ts';
 import { registerLegal } from './legal.ts';
+import { BACKUP_DIR, backupNow, keepAlive, listBackups } from './uptime.ts';
 
 // ---- who is calling, and what they may do ----
 type Req = FastifyRequest & { user?: User };
@@ -50,7 +51,10 @@ app.setErrorHandler((err: Error & { statusCode?: number }, _req, reply) => {
 
 // ---------------- public API (mobile app) ----------------
 
-app.get('/api/health', async () => ({ ok: true }));
+// Railway's health check: also proves the database answers.
+app.get('/api/health', async (_req, reply) => {
+  try { one('SELECT 1 AS ok'); return { ok: true }; } catch { return reply.code(503).send({ ok: false }); }
+});
 
 // Read-only feed for Arden, guarded by its own key (x-api-key: a24_...).
 partnerFeed(app);
@@ -130,6 +134,16 @@ app.register(async admin => {
 
   // Arden integration key (owner only)
   partnerAdmin(admin, ownerOnly);
+
+  // Database backups (owner only): list, make one now, download a copy to keep off the server.
+  admin.get('/backups', async req => { ownerOnly(req); return { backups: listBackups() }; });
+  admin.post('/backups', async req => { ownerOnly(req); backupNow(); return { backups: listBackups() }; });
+  admin.get('/backups/:name', async (req, reply) => {
+    ownerOnly(req);
+    const { name } = req.params as { name: string };
+    if (!/^alatoo-\d{4}-\d{2}-\d{2}\.db$/.test(name) || !listBackups().some(b => b.name === name)) throw new HttpError(404, 'Nusxa topilmadi');
+    return reply.header('content-disposition', `attachment; filename="${name}"`).type('application/octet-stream').send(createReadStream(join(BACKUP_DIR, name)));
+  });
   // Customer funnel board (Mijozlar → Voronka): anyone with customer access views, only the owner moves cards.
   pipelineAdmin(admin, req => need(req, 1, 'customers'), ownerOnly);
 
@@ -430,4 +444,5 @@ if (!one('SELECT id FROM products LIMIT 1')) await import('./seed.ts');
 
 const port = Number(process.env.PORT ?? 4000);
 await app.listen({ port, host: '0.0.0.0' });
+keepAlive(app);
 app.log.info(`CRM password: ${PASSWORD_SOURCE}`);
