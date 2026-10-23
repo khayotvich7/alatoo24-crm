@@ -2,9 +2,10 @@
 // (no key needed; the app hands us its Expo push token with the order).
 import { one } from './db.ts';
 
-const MESSAGES: Record<'placed' | 'courier' | 'delivered', (no: number) => { title: string; body: string }> = {
+const MESSAGES: Record<'placed' | 'courier' | 'problem' | 'delivered', (no: number) => { title: string; body: string }> = {
   placed: no => ({ title: 'Buyurtma rasmiylashtirildi ✅', body: `№ ${no} qabul qilindi. Operator tez orada qo'ng'iroq qiladi.` }),
   courier: no => ({ title: 'Buyurtma kuryerda 🚚', body: `№ ${no} yo'lda. To'lov qabul qilganda, naqd.` }),
+  problem: no => ({ title: 'Buyurtmangiz sizni kutyapti 📞', body: `№ ${no}: kuryer siz bilan bog'lana olmadi. Iltimos, telefon raqamingizga hushyorroq bo'ling.` }),
   delivered: no => ({ title: 'Yetkazildi 🎉', body: `№ ${no} yetkazildi. Xaridingiz uchun rahmat! Mahsulotga baho bering ⭐` }),
 };
 
@@ -26,7 +27,7 @@ export async function pushOrder(token: string, no: number, kind: keyof typeof ME
   }
 }
 
-export async function pushOrderStatus(orderId: number, status: 'ready' | 'delivered') {
+export async function pushOrderStatus(orderId: number, status: 'ready' | 'problem' | 'delivered') {
   const o = one<{ no: number; push_token: string }>('SELECT no, push_token FROM orders WHERE id = ?', orderId);
   if (o) await pushOrder(o.push_token, o.no, status === 'ready' ? 'courier' : status);
 }

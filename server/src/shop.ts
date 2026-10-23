@@ -8,7 +8,8 @@ import { customerKeys, onStatus, priceOrder, spendPoints } from './marketing.ts'
 export const PROMO = { code: 'ALATOO15', percent: 15 };
 // new → checking (Tekshiruvda) → confirmed → ready (Dastavkaga, out for delivery) → delivered; cancelled at any point.
 // 'courier' is no longer used by the CRM; old orders in it are moved to 'ready' at startup (db.ts).
-export const STATUSES = ['new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'] as const;
+// 'problem' (Muammoli): the courier could not reach the customer; the app asks them to watch their phone.
+export const STATUSES = ['new', 'checking', 'confirmed', 'ready', 'problem', 'delivered', 'cancelled'] as const;
 export type Status = (typeof STATUSES)[number];
 
 // Conditions under which the product needs a specialist's go-ahead (owner's list, conditions.json).
@@ -214,7 +215,7 @@ export function setStatus(id: number, status: Status, note = '') {
     run(`UPDATE orders SET status = ?, updated_at = datetime('now'), delivered_at = ${status === 'delivered' ? "datetime('now')" : 'NULL'} WHERE id = ?`, status, id);
     run('INSERT INTO order_events (order_id, status, note) VALUES (?,?,?)', id, status, note);
     onStatus(id, o.status, status);
-    if (status === 'ready' || status === 'delivered') void pushOrderStatus(id, status);
+    if (status === 'ready' || status === 'problem' || status === 'delivered') void pushOrderStatus(id, status);
     return getOrder(id)!;
   });
 }

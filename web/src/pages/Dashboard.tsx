@@ -96,7 +96,7 @@ export default function Dashboard(_: { arg: string | null }) {
         <div className="stack">
           <div className="card">
             <h2 style={{ marginBottom: 12 }}>Holatlar</h2>
-            {(['new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'] as Status[]).map(s => (
+            {(['new', 'checking', 'confirmed', 'ready', 'problem', 'delivered', 'cancelled'] as Status[]).map(s => (
               <div key={s} className="row between" style={{ padding: '8px 0' }}>
                 <span className={`badge t-${STATUS[s].tone}`}>{STATUS[s].label}</span>
                 <span className="num small"><b style={{ fontSize: 14 }}>{ss(s).n}</b>{m ? <span className="muted"> · {short(ss(s).s)}</span> : null}</span>

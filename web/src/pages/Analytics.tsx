@@ -7,7 +7,7 @@ const RANGES = [7, 30, 90, 365];
 const dm = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
 const WD = ['Yak', 'Du', 'Se', 'Chor', 'Pay', 'Ju', 'Shan'];
 const PIE = ['#2fbf7a', '#e3c98f', '#6aa8ff', '#a68cff', '#f2a24a', '#ff6b5e', '#c9d2d4', '#3dd68c'];
-const STATUS_COLOR: Record<string, string> = { new: '#6aa8ff', checking: '#e3c98f', confirmed: '#a68cff', ready: '#5fe0d6', delivered: '#2fbf7a', cancelled: '#ff6b5e' };
+const STATUS_COLOR: Record<string, string> = { new: '#6aa8ff', checking: '#e3c98f', confirmed: '#a68cff', ready: '#5fe0d6', problem: '#f2a24a', delivered: '#2fbf7a', cancelled: '#ff6b5e' };
 
 
 export default function Analytics(_: { arg: string | null }) {

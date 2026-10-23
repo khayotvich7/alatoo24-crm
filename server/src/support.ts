@@ -48,6 +48,7 @@ const STATUS_UZ: Record<string, string> = {
   checking: 'tekshirilmoqda, operator tez orada qo\'ng\'iroq qiladi',
   courier: 'kuryerga berildi, yo\'lda',
   ready: 'kuryerga berildi, yo\'lda',
+  problem: 'kuryer mijoz bilan bog\'lana olmadi, buyurtma mijozni kutyapti — mijoz telefoniga javob berishi kerak',
   delivered: 'yetkazildi',
   cancelled: 'bekor qilingan',
 };

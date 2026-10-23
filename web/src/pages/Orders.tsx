@@ -4,7 +4,7 @@ import { type Dashboard, del, FLOW, money, type Order, type OrderRow, patch, STA
 import { Badge, Confirm, Drawer, Empty, Icon, LiveDot, Search, useCan, useLive, useLoad, useMe, useToast } from '../ui';
 import { MetalButton } from '@/components/ui/metal-button';
 
-const FILTERS: (Status | 'all' | 'consult')[] = ['all', 'consult', 'new', 'checking', 'confirmed', 'ready', 'delivered', 'cancelled'];
+const FILTERS: (Status | 'all' | 'consult')[] = ['all', 'consult', 'new', 'checking', 'confirmed', 'ready', 'problem', 'delivered', 'cancelled'];
 
 const ConsultBadge = ({ c }: { c: string }) => c === 'needed' ? <span className="badge t-gold" title="Mutaxassis maslahati kerak">🩺 Maslahat kerak</span>
   : c === 'approved' ? <span className="badge t-green">🩺 Ruxsat</span> : c === 'rejected' ? <span className="badge t-red">🩺 Rad</span> : null;
@@ -12,6 +12,7 @@ const ConsultBadge = ({ c }: { c: string }) => c === 'needed' ? <span className=
 // Quick status from the list: one button at the end of the row, three choices, no need to open the order.
 const QUICK = [
   { to: 'ready', label: "Yo'lda", icon: 'truck', tone: 'var(--amber)' },
+  { to: 'problem', label: 'Muammoli', icon: 'alert', tone: 'var(--amber)' },
   { to: 'delivered', label: 'Yetkazildi', icon: 'check', tone: 'var(--ok)' },
   { to: 'cancelled', label: 'Otkaz', icon: 'ban', tone: 'var(--sale)' },
 ] as const;
@@ -40,7 +41,7 @@ function QuickStatus({ o, onDone }: { o: OrderRow; onDone: () => void }) {
     <>
       <button className="qs-btn" title="Holatni o'zgartirish" aria-label="Holatni o'zgartirish" disabled={busy}
         onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setAt(at ? null : { x: Math.min(r.right, window.innerWidth - 8), y: r.bottom + 6 }); }}>
-        <Icon name={o.status === 'ready' ? 'truck' : o.status === 'delivered' ? 'check' : o.status === 'cancelled' ? 'ban' : 'refresh'} size={17} />
+        <Icon name={o.status === 'ready' ? 'truck' : o.status === 'problem' ? 'alert' : o.status === 'delivered' ? 'check' : o.status === 'cancelled' ? 'ban' : 'refresh'} size={17} />
       </button>
       {at ? createPortal(
         <div className="qs-menu" style={{ top: Math.min(at.y, window.innerHeight - 170), left: at.x }} onClick={e => e.stopPropagation()}>
@@ -143,6 +144,7 @@ const NEXT: Partial<Record<Status, { to: Status; label: string; cls: string }>> 
   checking: { to: 'confirmed', label: 'Tekshirildi · tasdiqlash', cls: 'btn' },
   confirmed: { to: 'ready', label: 'Dastavkaga berildi', cls: 'btn' },
   ready: { to: 'delivered', label: 'Yetkazildi · naqd olindi', cls: 'btn sun' },
+  problem: { to: 'delivered', label: 'Yetkazildi · naqd olindi', cls: 'btn sun' },
 };
 
 function OrderDrawer({ id, onClose, onChanged }: { id: number; onClose: () => void; onChanged: () => void }) {
